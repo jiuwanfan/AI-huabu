@@ -34,12 +34,6 @@ Codex 里的 AI 画图白板 + 业务制图工作台。
 
 普通用户不需要理解 MCP、holder、run metadata 或本地文件路径。你只需要说需求、打开画布、选择图片、标注或提交 Skill，Codex 会把结果放回画布。
 
-## 界面展示
-
-<div align="center">
-  <img src="./assets/ai-huabu-interface-preview.png" alt="AI Huabu 操作界面展示：Codex 对话与本地画布联动" width="100%">
-</div>
-
 ## 核心能力
 
 | 能力 | 说明 |
@@ -106,58 +100,11 @@ flowchart LR
 5. 第一次处理 Skill 前，在 Codex 里说：`@AI Huabu 继续处理画布里的 Skill 请求`。
 6. 在画布里填写参数并点击 `提交给 Codex 生成`，结果会自动放到原图右侧。
 
-## Skill 工作流
-
-当前真实生成闭环已经支持 6 个内置 Skill。它们不是简单模板，而是会把当前图片、画布选择、表单参数和补充要求整理成 Codex 可执行的生成任务。
-
-| 分类 | Skill | 适合场景 | 输出 |
-| --- | --- | --- | --- |
-| Social Media | 小红书封面 | 笔记首图、种草封面、个人 IP 内容 | 3:4 成品封面图 |
-| Social Media | YouTube 封面图 | 知识频道、产品视频、教程视频 | 16:9 缩略图 |
-| E Commerce | 产品营销组图 | Amazon、Shopify、Meta 广告、通用电商图 | 主图、卖点图、场景图、细节图 |
-| Branding | Logo 与品牌 | 新品牌命名、产品品牌、App 或服务品牌 | Logo 方向、备选方案、品牌视觉板 |
-| Marketing | 营销宣传册 | 三折页、服务介绍册、活动推广册、产品推广册 | 外页、内页、样机、推广图 |
-| Studio | 一键跨平台适配 | 同一张图快速适配多平台发布 | 小红书、Instagram、Story/Reels、公众号、推特、LinkedIn 等比例 |
-
-### 小红书封面
-
-选中一张图片，进入 `Social Media` 分类，选择 `小红书封面`。填写内容类型、主标题、标题风格、标题位置和必须保留的元素后提交。结果会直出包含字体、配色、版式和中文标题的完整 3:4 封面图。
 
 <div align="center">
   <img src="./assets/skills/xiaohongshu-cover.png" alt="AI Huabu 小红书封面 Skill 操作界面" width="100%">
 </div>
 
-### YouTube 封面图
-
-选中图片后选择 `YouTube 封面图`。输入视频主题、大标题、目标观众、缩略图风格、标题位置和保留重点，Codex 会生成更适合 16:9 展示的高识别度缩略图。
-
-<div align="center">
-  <img src="./assets/skills/youtube-thumbnail.png" alt="AI Huabu YouTube 封面图 Skill 操作界面" width="100%">
-</div>
-
-### 产品营销组图
-
-在 `E Commerce` 分类选择 `产品营销组图`。可按 Amazon 商品页 / A+、Shopify / 独立站、Meta 广告、Google 展示广告或通用电商套图生成多张物料，适合把一张产品图扩展成完整销售视觉。
-
-<div align="center">
-  <img src="./assets/skills/product-marketing-set.png" alt="AI Huabu 产品营销组图 Skill 操作界面" width="100%">
-</div>
-
-### Logo 与品牌
-
-在 `Branding` 分类选择 `Logo 与品牌`。填写品牌名、行业、目标受众、定位差异点、品牌人格、Logo 风格和使用场景，Codex 会生成 Logo 概念、备选方向和品牌视觉板。
-
-<div align="center">
-  <img src="./assets/skills/logo-and-brand.png" alt="AI Huabu Logo 与品牌 Skill 操作界面" width="100%">
-</div>
-
-### 营销宣传册
-
-在 `Marketing` 分类选择 `营销宣传册`。支持三折页宣传册、服务介绍册、活动推广册、产品推广册，适合把活动、课程、服务或产品说明整理成可展示的多页营销物料。
-
-<div align="center">
-  <img src="./assets/skills/marketing-brochure.png" alt="AI Huabu 营销宣传册 Skill 操作界面" width="100%">
-</div>
 
 ### 一键跨平台适配
 
@@ -249,6 +196,3 @@ NODE_ENV=production node packages/canvas-app/dist/server/server.js \
 http://127.0.0.1:43218/
 ```
 
-## 许可证
-
-MIT. See [LICENSE](./LICENSE).
