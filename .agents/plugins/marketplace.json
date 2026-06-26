@@ -1,14 +1,14 @@
 {
-  "name": "ai-canvas",
+  "name": "ai-huabu",
   "interface": {
-    "displayName": "AI Canvas"
+    "displayName": "AI Huabu"
   },
   "plugins": [
     {
-      "name": "ai-canvas-codex-plugin",
+      "name": "ai-huabu-codex-plugin",
       "source": {
         "source": "local",
-        "path": "./ai-canvas-codex-plugin"
+        "path": "./ai-huabu-codex-plugin"
       },
       "policy": {
         "installation": "AVAILABLE",

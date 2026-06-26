@@ -8,12 +8,14 @@ AI无限画布制图工作流产品开发文档.md
 node_modules/
 tmp/
 .ai-canvas/
+.ai-huabu/
 output/
 
 **/node_modules/
 **/tmp/
 **/.ai-canvas/
+**/.ai-huabu/
 **/output/
 **/*.tsbuildinfo
 
-# Keep ai-canvas-codex-plugin/packages/*/dist trackable for Codex Git marketplace installs.
+# Keep ai-huabu-codex-plugin/packages/*/dist trackable for Codex Git marketplace installs.
