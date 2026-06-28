@@ -21,6 +21,16 @@ import type {
   ShapeSummary
 } from '@ai-huabu/shared'
 import { buildAnnotationEditPrompt, parseAnnotations } from '@ai-huabu/shared'
+import {
+  applyCanvasActionsInputSchema,
+  importImageAssetInputSchema,
+  importImageFromUrlInputSchema,
+  openCanvasInputSchema,
+  prepareSkillRunInputSchema,
+  recommendCanvasSkillsInputSchema,
+  runCanvasSkillInputSchema,
+  submitSkillRequestInputSchema
+} from '@ai-huabu/shared'
 import express from 'express'
 import { existsSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
@@ -29,6 +39,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { nanoid } from 'nanoid'
 import { WebSocket, WebSocketServer } from 'ws'
+import { ZodError, type ZodType } from 'zod'
+import { isAllowedLocalOrigin, requireLocalOrigin } from './server/security.js'
 
 type PendingCommand = {
   resolve: (value: unknown) => void
@@ -193,8 +205,37 @@ let activeClient: WebSocket | undefined
 let session: CanvasSession | undefined
 let codexListenerLastSeenAt: string | undefined
 
+class HttpError extends Error {
+  constructor(
+    readonly statusCode: number,
+    message: string
+  ) {
+    super(message)
+  }
+}
+
 function nowIso() {
   return new Date().toISOString()
+}
+
+function validationMessage(error: ZodError) {
+  return error.issues
+    .map((issue) => {
+      const pathName = issue.path.length ? issue.path.join('.') : 'input'
+      return `${pathName}: ${issue.message}`
+    })
+    .join('; ')
+}
+
+function parseInput<T>(schema: ZodType<T>, input: unknown): T {
+  try {
+    return schema.parse(input)
+  } catch (error) {
+    if (error instanceof ZodError) {
+      throw new HttpError(400, validationMessage(error))
+    }
+    throw error
+  }
 }
 
 function parseArgs(argv: string[]) {
@@ -3338,8 +3379,15 @@ async function start() {
 
   const app = express()
   const server = createServer(app)
-  const wss = new WebSocketServer({ server, path: '/ws' })
+  const wss = new WebSocketServer({
+    server,
+    path: '/ws',
+    verifyClient: (info, done) => {
+      done(isAllowedLocalOrigin(info.origin, port), 403, 'Invalid Origin')
+    }
+  })
 
+  app.use(requireLocalOrigin(port))
   app.use(express.json({ limit: '25mb' }))
 
   app.get('/api/health', (_request, response) => {
@@ -3356,7 +3404,8 @@ async function start() {
 
   app.post('/api/canvas/open', async (request, response, next) => {
     try {
-      const nextSession = await openSession(request.body ?? {})
+      const body = parseInput(openCanvasInputSchema, request.body ?? {})
+      const nextSession = await openSession(body)
       response.json({
         url: `http://127.0.0.1:${port}/`,
         canvasId: nextSession.canvasId,
@@ -3386,13 +3435,11 @@ async function start() {
   app.post('/api/canvas/import-file', async (request, response, next) => {
     try {
       if (!session) throw new Error('Canvas session is not open')
-      const body = isRecord(request.body) ? request.body : {}
-      const inputPath = String(body.inputPath ?? '')
-      if (!inputPath) throw new Error('inputPath is required.')
-      const file = await readImportFile(inputPath)
+      const body = parseInput(importImageAssetInputSchema, request.body ?? {})
+      const file = await readImportFile(body.inputPath)
       const result = await importCanvasImage({
         buffer: file.buffer,
-        source: (body.source ?? 'upload') as CanvasImageSource,
+        source: body.source ?? 'upload',
         originalName: body.title ? String(body.title) : file.originalName,
         inputPath: file.absolutePath,
         payload: body
@@ -3406,10 +3453,8 @@ async function start() {
   app.post('/api/canvas/import-url', async (request, response, next) => {
     try {
       if (!session) throw new Error('Canvas session is not open')
-      const body = isRecord(request.body) ? request.body : {}
-      const rawUrl = String(body.url ?? '')
-      if (!rawUrl) throw new Error('url is required.')
-      const fetched = await fetchImportUrl(rawUrl)
+      const body = parseInput(importImageFromUrlInputSchema, request.body ?? {})
+      const fetched = await fetchImportUrl(body.url)
       const result = await importCanvasImage({
         buffer: fetched.buffer,
         source: 'url',
@@ -3444,8 +3489,8 @@ async function start() {
 
   app.post('/api/canvas/actions', async (request, response, next) => {
     try {
-      const body = isRecord(request.body) ? request.body : {}
-      const actions = Array.isArray(body.actions) ? (body.actions as CanvasAction[]) : []
+      const body = parseInput(applyCanvasActionsInputSchema, request.body ?? {})
+      const actions = body.actions as CanvasAction[]
       if (!actions.length) throw new Error('actions are required.')
       response.json(await applyCanvasActions(actions))
     } catch (error) {
@@ -3468,11 +3513,11 @@ async function start() {
 
   app.post('/api/canvas/skills/recommend', (request, response, next) => {
     try {
-      const body = isRecord(request.body) ? request.body : {}
+      const body = parseInput(recommendCanvasSkillsInputSchema, request.body ?? {})
       response.json(
         recommendSkills({
-          userRequest: body.userRequest ? String(body.userRequest) : undefined,
-          maxResults: Number(body.maxResults ?? 5)
+          userRequest: body.userRequest,
+          maxResults: body.maxResults
         })
       )
     } catch (error) {
@@ -3482,7 +3527,7 @@ async function start() {
 
   app.post('/api/canvas/skills/prepare-run', async (request, response, next) => {
     try {
-      const body = isRecord(request.body) ? request.body : {}
+      const body = parseInput(prepareSkillRunInputSchema, request.body ?? {})
       response.json(await prepareSkillRun(body))
     } catch (error) {
       next(error)
@@ -3491,10 +3536,8 @@ async function start() {
 
   app.post('/api/canvas/skills/run', async (request, response, next) => {
     try {
-      const body = isRecord(request.body) ? request.body : {}
-      const runId = String(body.runId ?? '')
-      if (!runId) throw new Error('runId is required.')
-      const run = await runSkillRun(runId)
+      const body = parseInput(runCanvasSkillInputSchema, request.body ?? {})
+      const run = await runSkillRun(body.runId)
       response.json({
         ...run,
         message: run.outputs?.message
@@ -3519,7 +3562,7 @@ async function start() {
 
   app.post('/api/canvas/skill-request', async (request, response, next) => {
     try {
-      const body = isRecord(request.body) ? request.body : {}
+      const body = parseInput(submitSkillRequestInputSchema, request.body ?? {})
       const skillRequest = await submitSkillRequest(body)
       response.json({
         ...skillRequest,
@@ -3863,7 +3906,12 @@ async function start() {
     }
   })
 
-  wss.on('connection', (socket) => {
+  wss.on('connection', (socket, request) => {
+    if (!isAllowedLocalOrigin(request.headers.origin, port)) {
+      socket.close(1008, 'Invalid Origin')
+      return
+    }
+
     clients.add(socket)
     activeClient = socket
     socket.send(JSON.stringify({ type: 'server:state', payload: session ? statePayload() : null }))
@@ -3923,8 +3971,9 @@ async function start() {
 
   app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
     const message = error instanceof Error ? error.message : String(error)
+    const statusCode = error instanceof HttpError ? error.statusCode : 500
     console.error('[ai-huabu] api error', message)
-    response.status(500).json({ ok: false, error: message })
+    response.status(statusCode).json({ ok: false, error: message })
   })
 
   server.listen(port, '127.0.0.1', () => {

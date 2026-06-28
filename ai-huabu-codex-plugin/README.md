@@ -118,6 +118,7 @@ Skill 面板：先说 `@AI Huabu 继续处理画布里的 Skill 请求`，再根
 Useful prompts / 常用提示词：
 
 ```text
+@AI Huabu 打开AI画布
 @AI Huabu 打开 AI Huabu，帮我做一张小红书封面。
 @AI Huabu 生成一张竖版拉面广告，品牌叫拉面一番，要高级食物摄影风格。
 @AI Huabu 开启自动修图模式。

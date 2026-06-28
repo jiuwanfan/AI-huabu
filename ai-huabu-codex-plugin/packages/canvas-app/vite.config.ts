@@ -9,6 +9,14 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist/client',
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('tldraw') || id.includes('@tldraw')) return 'tldraw'
+          return undefined
+        }
+      }
+    }
   }
 })

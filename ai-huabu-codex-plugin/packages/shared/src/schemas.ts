@@ -25,7 +25,7 @@ export const canvasSkillCategorySchema = z.enum([
 ])
 
 export const canvasActionSchema = z.object({
-  id: z.string(),
+  id: z.string().min(1),
   type: z.enum([
     'import_image',
     'create_artboard',
@@ -70,7 +70,7 @@ export const insertImageIntoHolderInputSchema = z.object({
 })
 
 export const importImageAssetInputSchema = openCanvasInputSchema.extend({
-  inputPath: z.string(),
+  inputPath: z.string().min(1),
   source: canvasImageSourceSchema.default('upload'),
   title: z.string().default('外部导入图片'),
   placement: z.enum(['viewport_center', 'selection_right', 'absolute']).default('selection_right'),
@@ -99,8 +99,8 @@ export const collectAnnotationsInputSchema = z.object({
 })
 
 export const createImageVersionInputSchema = z.object({
-  sourceShapeId: z.string(),
-  imagePath: z.string(),
+  sourceShapeId: z.string().min(1),
+  imagePath: z.string().min(1),
   placement: z.enum(['right', 'replace']).default('right'),
   title: z.string().default('AI 图片 v2'),
   runId: z.string().optional(),
@@ -112,7 +112,7 @@ export const createImageVersionInputSchema = z.object({
 })
 
 export const applyCanvasActionsInputSchema = openCanvasInputSchema.extend({
-  actions: z.array(canvasActionSchema)
+  actions: z.array(canvasActionSchema).min(1)
 })
 
 export const listCanvasSkillsInputSchema = z.object({
@@ -125,22 +125,22 @@ export const recommendCanvasSkillsInputSchema = openCanvasInputSchema.extend({
 })
 
 export const prepareSkillRunInputSchema = openCanvasInputSchema.extend({
-  skillId: z.string(),
+  skillId: z.string().min(1),
   userRequest: z.string().optional(),
   selectionMode: z.enum(['current']).default('current')
 })
 
 export const runCanvasSkillInputSchema = openCanvasInputSchema.extend({
-  runId: z.string(),
+  runId: z.string().min(1),
   overrides: z.record(z.unknown()).optional()
 })
 
 export const getSkillRunInputSchema = z.object({
-  runId: z.string()
+  runId: z.string().min(1)
 })
 
 export const submitSkillRequestInputSchema = openCanvasInputSchema.extend({
-  skillId: z.string(),
+  skillId: z.string().min(1),
   userRequest: z.string().optional(),
   brief: z.record(z.unknown()).optional(),
   inputDataUrl: z.string().optional(),
@@ -155,11 +155,11 @@ export const watchSkillRequestsInputSchema = openCanvasInputSchema.extend({
 })
 
 export const getSkillRequestInputSchema = z.object({
-  requestId: z.string()
+  requestId: z.string().min(1)
 })
 
 export const updateSkillRequestInputSchema = z.object({
-  requestId: z.string(),
+  requestId: z.string().min(1),
   status: editRequestStatusSchema,
   error: z.string().optional(),
   result: z.record(z.unknown()).optional()
@@ -190,11 +190,11 @@ export const watchEditRequestsInputSchema = openCanvasInputSchema.extend({
 })
 
 export const getEditRequestInputSchema = z.object({
-  requestId: z.string()
+  requestId: z.string().min(1)
 })
 
 export const updateEditRequestInputSchema = z.object({
-  requestId: z.string(),
+  requestId: z.string().min(1),
   status: editRequestStatusSchema,
   error: z.string().optional(),
   result: z.record(z.unknown()).optional()

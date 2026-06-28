@@ -53,6 +53,12 @@ describe('canvas MVP contract schemas', () => {
 
     expect(parsed.actions).toHaveLength(1)
     expect(parsed.actions[0].type).toBe('place_note')
+
+    expect(() =>
+      applyCanvasActionsInputSchema.parse({
+        actions: []
+      })
+    ).toThrow()
   })
 
   it('parses image version sizing overrides', () => {

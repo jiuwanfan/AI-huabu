@@ -11,7 +11,7 @@
     "dev:canvas": "npx --yes pnpm@10.13.1 --filter @ai-huabu/shared build && npx --yes pnpm@10.13.1 --filter @ai-huabu/canvas-app dev:service",
     "setup": "node scripts/setup.mjs",
     "typecheck": "npx --yes pnpm@10.13.1 --filter @ai-huabu/shared build && npx --yes pnpm@10.13.1 -r --filter @ai-huabu/canvas-app --filter @ai-huabu/mcp-server typecheck",
-    "test": "npx --yes pnpm@10.13.1 --filter @ai-huabu/mcp-server test",
+    "test": "npx --yes pnpm@10.13.1 -r --filter @ai-huabu/canvas-app --filter @ai-huabu/mcp-server test",
     "validate:plugin": "node scripts/validate-plugin.mjs"
   },
   "devDependencies": {

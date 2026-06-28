@@ -7,13 +7,15 @@ import { fileURLToPath } from 'node:url'
 const pluginRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const marketplaceRoot = path.dirname(pluginRoot)
 const pnpmVersion = '10.13.1'
+const npxCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx'
 
 function run(command, args) {
   console.log(`\n> ${command} ${args.join(' ')}`)
   execFileSync(command, args, {
     cwd: pluginRoot,
     stdio: 'inherit',
-    env: process.env
+    env: process.env,
+    shell: process.platform === 'win32'
   })
 }
 
@@ -25,8 +27,8 @@ function ensureNodeVersion() {
 }
 
 ensureNodeVersion()
-run('npx', ['--yes', `pnpm@${pnpmVersion}`, 'install'])
-run('npx', [
+run(npxCommand, ['--yes', `pnpm@${pnpmVersion}`, 'install'])
+run(npxCommand, [
   '--yes',
   `pnpm@${pnpmVersion}`,
   '-r',

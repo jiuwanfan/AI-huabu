@@ -1,6 +1,6 @@
 ---
 name: ai-huabu-art-director
-description: "Use when the user wants an end-to-end natural-language AI infinite canvas workflow: opening AI Huabu, including the startup phrase 打开AI Huabu, generating images into holders, reading canvas annotations, handling phrases like 要求后续变更 / 按标注修改, and creating edited image versions."
+description: "Use when the user wants an end-to-end natural-language AI infinite canvas workflow: opening AI Huabu, including startup phrases like 打开AI画布 or 打开AI Huabu, generating images into holders, reading canvas annotations, handling phrases like 要求后续变更 / 按标注修改, and creating edited image versions."
 ---
 
 # AI Huabu Art Director
@@ -14,7 +14,7 @@ If the user is asking how to start from zero, explain the experience in this ord
 1. Install the AI Huabu plugin once.
 2. Restart Codex or open a new chat so the plugin and MCP tools load.
 3. Invoke it with `@AI Huabu` or `/AI Huabu` if the Codex UI supports explicit plugin calls.
-4. Say a natural request, such as `打开 AI Huabu，帮我做一张拉面广告。`
+4. Say a natural request, such as `打开AI画布，帮我做一张拉面广告。`
 5. Use the canvas to annotate. After the first image is generated, Codex should keep listening; click `按标注修图` on the canvas after each finished batch of annotations. If the Codex app/thread was closed, come back and say `AI Huabu 继续自动修图`.
 
 Do not start zero-to-one guidance with "open the canvas" unless the plugin is already installed.
@@ -24,7 +24,7 @@ Do not start zero-to-one guidance with "open the canvas" unless the plugin is al
 The ideal interaction is:
 
 ```text
-User: @AI Huabu 打开 AI Huabu，帮我做一张拉面广告。
+User: @AI Huabu 打开AI画布，帮我做一张拉面广告。
 Codex: opens the canvas, creates or uses a holder, generates the image, inserts it, then keeps watching canvas edit requests.
 
 User: draws several annotations on the canvas, then clicks 按标注修图.
@@ -121,7 +121,7 @@ For a single manual follow-up, do this:
 
 Never overwrite an existing image unless the user explicitly says to replace it.
 
-## If The User Only Says "打开 AI Huabu" Or "打开AI Huabu"
+## If The User Only Says "打开AI画布", "打开 AI Huabu", Or "打开AI Huabu"
 
 Call `open_canvas`, show the returned URL as a clickable link, and say the canvas is ready. Do not open an external browser window. Do not explain MCP setup unless it fails.
 
@@ -163,7 +163,7 @@ If multiple target images exist and none is selected:
 
 If the user asks about installation or setup:
 
-1. Explain the simple path: install plugin once, restart Codex, then say `@AI Huabu 打开 AI Huabu`.
+1. Explain the simple path: install plugin once, restart Codex, then say `@AI Huabu 打开AI画布`.
 2. Mention technical commands only under a "developer setup" heading.
 
 See `references/annotation-rules.md` and `references/prompt-patterns.md` for details.

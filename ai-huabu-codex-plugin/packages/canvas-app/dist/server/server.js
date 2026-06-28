@@ -802,12 +802,12 @@ var require_http_errors = __commonJS({
       if (typeof status !== "number" || !statuses.message[status] && (status < 400 || status >= 600)) {
         status = 500;
       }
-      var HttpError = createError[status] || createError[codeClass(status)];
+      var HttpError2 = createError[status] || createError[codeClass(status)];
       if (!err) {
-        err = HttpError ? new HttpError(msg) : new Error(msg || statuses.message[status]);
+        err = HttpError2 ? new HttpError2(msg) : new Error(msg || statuses.message[status]);
         Error.captureStackTrace(err, createError);
       }
-      if (!HttpError || !(err instanceof HttpError) || err.status !== status) {
+      if (!HttpError2 || !(err instanceof HttpError2) || err.status !== status) {
         err.expose = status < 500;
         err.status = err.statusCode = status;
       }
@@ -819,13 +819,13 @@ var require_http_errors = __commonJS({
       return err;
     }
     function createHttpErrorConstructor() {
-      function HttpError() {
+      function HttpError2() {
         throw new TypeError("cannot construct abstract class");
       }
-      inherits(HttpError, Error);
-      return HttpError;
+      inherits(HttpError2, Error);
+      return HttpError2;
     }
-    function createClientErrorConstructor(HttpError, name, code) {
+    function createClientErrorConstructor(HttpError2, name, code) {
       var className = toClassName(name);
       function ClientError(message) {
         var msg = message != null ? message : statuses.message[code];
@@ -846,25 +846,25 @@ var require_http_errors = __commonJS({
         });
         return err;
       }
-      inherits(ClientError, HttpError);
+      inherits(ClientError, HttpError2);
       nameFunc(ClientError, className);
       ClientError.prototype.status = code;
       ClientError.prototype.statusCode = code;
       ClientError.prototype.expose = true;
       return ClientError;
     }
-    function createIsHttpErrorFunction(HttpError) {
+    function createIsHttpErrorFunction(HttpError2) {
       return function isHttpError(val) {
         if (!val || typeof val !== "object") {
           return false;
         }
-        if (val instanceof HttpError) {
+        if (val instanceof HttpError2) {
           return true;
         }
         return val instanceof Error && typeof val.expose === "boolean" && typeof val.statusCode === "number" && val.status === val.statusCode;
       };
     }
-    function createServerErrorConstructor(HttpError, name, code) {
+    function createServerErrorConstructor(HttpError2, name, code) {
       var className = toClassName(name);
       function ServerError(message) {
         var msg = message != null ? message : statuses.message[code];
@@ -885,7 +885,7 @@ var require_http_errors = __commonJS({
         });
         return err;
       }
-      inherits(ServerError, HttpError);
+      inherits(ServerError, HttpError2);
       nameFunc(ServerError, className);
       ServerError.prototype.status = code;
       ServerError.prototype.statusCode = code;
@@ -899,16 +899,16 @@ var require_http_errors = __commonJS({
         Object.defineProperty(func, "name", desc);
       }
     }
-    function populateConstructorExports(exports2, codes, HttpError) {
+    function populateConstructorExports(exports2, codes, HttpError2) {
       codes.forEach(function forEachCode(code) {
         var CodeError;
         var name = toIdentifier(statuses.message[code]);
         switch (codeClass(code)) {
           case 400:
-            CodeError = createClientErrorConstructor(HttpError, name, code);
+            CodeError = createClientErrorConstructor(HttpError2, name, code);
             break;
           case 500:
-            CodeError = createServerErrorConstructor(HttpError, name, code);
+            CodeError = createServerErrorConstructor(HttpError2, name, code);
             break;
         }
         if (CodeError) {
@@ -25403,14 +25403,14 @@ var require_websocket = __commonJS({
           return;
         }
       }
-      const defaultPort = isSecure ? 443 : 80;
+      const defaultPort2 = isSecure ? 443 : 80;
       const key = randomBytes(16).toString("base64");
       const request = isSecure ? https.request : http.request;
       const protocolSet = /* @__PURE__ */ new Set();
       let perMessageDeflate;
       opts.createConnection = opts.createConnection || (isSecure ? tlsConnect : netConnect);
-      opts.defaultPort = opts.defaultPort || defaultPort;
-      opts.port = parsedUrl.port || defaultPort;
+      opts.defaultPort = opts.defaultPort || defaultPort2;
+      opts.port = parsedUrl.port || defaultPort2;
       opts.host = parsedUrl.hostname.startsWith("[") ? parsedUrl.hostname.slice(1, -1) : parsedUrl.hostname;
       opts.headers = {
         ...opts.headers,
@@ -30551,7 +30551,7 @@ var canvasSkillCategorySchema = external_exports.enum([
   "studio"
 ]);
 var canvasActionSchema = external_exports.object({
-  id: external_exports.string(),
+  id: external_exports.string().min(1),
   type: external_exports.enum([
     "import_image",
     "create_artboard",
@@ -30591,7 +30591,7 @@ var insertImageIntoHolderInputSchema = external_exports.object({
   title: external_exports.string().default("AI \u56FE\u7247")
 });
 var importImageAssetInputSchema = openCanvasInputSchema.extend({
-  inputPath: external_exports.string(),
+  inputPath: external_exports.string().min(1),
   source: canvasImageSourceSchema.default("upload"),
   title: external_exports.string().default("\u5916\u90E8\u5BFC\u5165\u56FE\u7247"),
   placement: external_exports.enum(["viewport_center", "selection_right", "absolute"]).default("selection_right"),
@@ -30617,8 +30617,8 @@ var collectAnnotationsInputSchema = external_exports.object({
   includeScreenshot: external_exports.boolean().default(true)
 });
 var createImageVersionInputSchema = external_exports.object({
-  sourceShapeId: external_exports.string(),
-  imagePath: external_exports.string(),
+  sourceShapeId: external_exports.string().min(1),
+  imagePath: external_exports.string().min(1),
   placement: external_exports.enum(["right", "replace"]).default("right"),
   title: external_exports.string().default("AI \u56FE\u7247 v2"),
   runId: external_exports.string().optional(),
@@ -30629,7 +30629,7 @@ var createImageVersionInputSchema = external_exports.object({
   h: external_exports.number().positive().optional()
 });
 var applyCanvasActionsInputSchema = openCanvasInputSchema.extend({
-  actions: external_exports.array(canvasActionSchema)
+  actions: external_exports.array(canvasActionSchema).min(1)
 });
 var listCanvasSkillsInputSchema = external_exports.object({
   category: canvasSkillCategorySchema.optional()
@@ -30639,19 +30639,19 @@ var recommendCanvasSkillsInputSchema = openCanvasInputSchema.extend({
   maxResults: external_exports.number().int().positive().max(10).default(5)
 });
 var prepareSkillRunInputSchema = openCanvasInputSchema.extend({
-  skillId: external_exports.string(),
+  skillId: external_exports.string().min(1),
   userRequest: external_exports.string().optional(),
   selectionMode: external_exports.enum(["current"]).default("current")
 });
 var runCanvasSkillInputSchema = openCanvasInputSchema.extend({
-  runId: external_exports.string(),
+  runId: external_exports.string().min(1),
   overrides: external_exports.record(external_exports.unknown()).optional()
 });
 var getSkillRunInputSchema = external_exports.object({
-  runId: external_exports.string()
+  runId: external_exports.string().min(1)
 });
 var submitSkillRequestInputSchema = openCanvasInputSchema.extend({
-  skillId: external_exports.string(),
+  skillId: external_exports.string().min(1),
   userRequest: external_exports.string().optional(),
   brief: external_exports.record(external_exports.unknown()).optional(),
   inputDataUrl: external_exports.string().optional(),
@@ -30664,10 +30664,10 @@ var watchSkillRequestsInputSchema = openCanvasInputSchema.extend({
   includeCompleted: external_exports.boolean().default(false)
 });
 var getSkillRequestInputSchema = external_exports.object({
-  requestId: external_exports.string()
+  requestId: external_exports.string().min(1)
 });
 var updateSkillRequestInputSchema = external_exports.object({
-  requestId: external_exports.string(),
+  requestId: external_exports.string().min(1),
   status: editRequestStatusSchema,
   error: external_exports.string().optional(),
   result: external_exports.record(external_exports.unknown()).optional()
@@ -30694,10 +30694,10 @@ var watchEditRequestsInputSchema = openCanvasInputSchema.extend({
   includeCompleted: external_exports.boolean().default(false)
 });
 var getEditRequestInputSchema = external_exports.object({
-  requestId: external_exports.string()
+  requestId: external_exports.string().min(1)
 });
 var updateEditRequestInputSchema = external_exports.object({
-  requestId: external_exports.string(),
+  requestId: external_exports.string().min(1),
   status: editRequestStatusSchema,
   error: external_exports.string().optional(),
   result: external_exports.record(external_exports.unknown()).optional()
@@ -30753,6 +30753,37 @@ var import_subprotocol = __toESM(require_subprotocol(), 1);
 var import_websocket = __toESM(require_websocket(), 1);
 var import_websocket_server = __toESM(require_websocket_server(), 1);
 
+// src/server/security.ts
+var LOOPBACK_HOSTS = /* @__PURE__ */ new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+function defaultPort(protocol) {
+  if (protocol === "http:") return 80;
+  if (protocol === "https:") return 443;
+  return void 0;
+}
+function isAllowedLocalOrigin(origin, servicePort) {
+  if (!origin) return true;
+  try {
+    const parsed = new URL(origin);
+    const host = parsed.hostname.toLowerCase();
+    const port = parsed.port ? Number(parsed.port) : defaultPort(parsed.protocol);
+    return (parsed.protocol === "http:" || parsed.protocol === "https:") && LOOPBACK_HOSTS.has(host) && port === servicePort;
+  } catch {
+    return false;
+  }
+}
+function requireLocalOrigin(servicePort) {
+  return (request, response, next) => {
+    if (isAllowedLocalOrigin(request.headers.origin, servicePort)) {
+      next();
+      return;
+    }
+    response.status(403).json({
+      ok: false,
+      error: "AI Huabu only accepts browser requests from its local canvas page."
+    });
+  };
+}
+
 // src/server.ts
 var APP_VERSION = "0.1.0";
 var FEATURES = [
@@ -30776,8 +30807,31 @@ var clients = /* @__PURE__ */ new Set();
 var activeClient;
 var session;
 var codexListenerLastSeenAt;
+var HttpError = class extends Error {
+  constructor(statusCode, message) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+  statusCode;
+};
 function nowIso() {
   return (/* @__PURE__ */ new Date()).toISOString();
+}
+function validationMessage(error) {
+  return error.issues.map((issue) => {
+    const pathName = issue.path.length ? issue.path.join(".") : "input";
+    return `${pathName}: ${issue.message}`;
+  }).join("; ");
+}
+function parseInput(schema, input) {
+  try {
+    return schema.parse(input);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      throw new HttpError(400, validationMessage(error));
+    }
+    throw error;
+  }
 }
 function parseArgs(argv) {
   const args = /* @__PURE__ */ new Map();
@@ -33520,7 +33574,14 @@ async function start() {
   });
   const app = (0, import_express.default)();
   const server = createServer(app);
-  const wss = new import_websocket_server.default({ server, path: "/ws" });
+  const wss = new import_websocket_server.default({
+    server,
+    path: "/ws",
+    verifyClient: (info, done) => {
+      done(isAllowedLocalOrigin(info.origin, port), 403, "Invalid Origin");
+    }
+  });
+  app.use(requireLocalOrigin(port));
   app.use(import_express.default.json({ limit: "25mb" }));
   app.get("/api/health", (_request, response) => {
     response.json({
@@ -33535,7 +33596,8 @@ async function start() {
   });
   app.post("/api/canvas/open", async (request, response, next) => {
     try {
-      const nextSession = await openSession(request.body ?? {});
+      const body = parseInput(openCanvasInputSchema, request.body ?? {});
+      const nextSession = await openSession(body);
       response.json({
         url: `http://127.0.0.1:${port}/`,
         canvasId: nextSession.canvasId,
@@ -33562,10 +33624,8 @@ async function start() {
   app.post("/api/canvas/import-file", async (request, response, next) => {
     try {
       if (!session) throw new Error("Canvas session is not open");
-      const body = isRecord(request.body) ? request.body : {};
-      const inputPath = String(body.inputPath ?? "");
-      if (!inputPath) throw new Error("inputPath is required.");
-      const file = await readImportFile(inputPath);
+      const body = parseInput(importImageAssetInputSchema, request.body ?? {});
+      const file = await readImportFile(body.inputPath);
       const result = await importCanvasImage({
         buffer: file.buffer,
         source: body.source ?? "upload",
@@ -33581,10 +33641,8 @@ async function start() {
   app.post("/api/canvas/import-url", async (request, response, next) => {
     try {
       if (!session) throw new Error("Canvas session is not open");
-      const body = isRecord(request.body) ? request.body : {};
-      const rawUrl = String(body.url ?? "");
-      if (!rawUrl) throw new Error("url is required.");
-      const fetched = await fetchImportUrl(rawUrl);
+      const body = parseInput(importImageFromUrlInputSchema, request.body ?? {});
+      const fetched = await fetchImportUrl(body.url);
       const result = await importCanvasImage({
         buffer: fetched.buffer,
         source: "url",
@@ -33617,8 +33675,8 @@ async function start() {
   });
   app.post("/api/canvas/actions", async (request, response, next) => {
     try {
-      const body = isRecord(request.body) ? request.body : {};
-      const actions = Array.isArray(body.actions) ? body.actions : [];
+      const body = parseInput(applyCanvasActionsInputSchema, request.body ?? {});
+      const actions = body.actions;
       if (!actions.length) throw new Error("actions are required.");
       response.json(await applyCanvasActions(actions));
     } catch (error) {
@@ -33637,11 +33695,11 @@ async function start() {
   });
   app.post("/api/canvas/skills/recommend", (request, response, next) => {
     try {
-      const body = isRecord(request.body) ? request.body : {};
+      const body = parseInput(recommendCanvasSkillsInputSchema, request.body ?? {});
       response.json(
         recommendSkills({
-          userRequest: body.userRequest ? String(body.userRequest) : void 0,
-          maxResults: Number(body.maxResults ?? 5)
+          userRequest: body.userRequest,
+          maxResults: body.maxResults
         })
       );
     } catch (error) {
@@ -33650,7 +33708,7 @@ async function start() {
   });
   app.post("/api/canvas/skills/prepare-run", async (request, response, next) => {
     try {
-      const body = isRecord(request.body) ? request.body : {};
+      const body = parseInput(prepareSkillRunInputSchema, request.body ?? {});
       response.json(await prepareSkillRun(body));
     } catch (error) {
       next(error);
@@ -33658,10 +33716,8 @@ async function start() {
   });
   app.post("/api/canvas/skills/run", async (request, response, next) => {
     try {
-      const body = isRecord(request.body) ? request.body : {};
-      const runId = String(body.runId ?? "");
-      if (!runId) throw new Error("runId is required.");
-      const run = await runSkillRun(runId);
+      const body = parseInput(runCanvasSkillInputSchema, request.body ?? {});
+      const run = await runSkillRun(body.runId);
       response.json({
         ...run,
         message: run.outputs?.message
@@ -33684,7 +33740,7 @@ async function start() {
   });
   app.post("/api/canvas/skill-request", async (request, response, next) => {
     try {
-      const body = isRecord(request.body) ? request.body : {};
+      const body = parseInput(submitSkillRequestInputSchema, request.body ?? {});
       const skillRequest = await submitSkillRequest(body);
       response.json({
         ...skillRequest,
@@ -33981,7 +34037,11 @@ async function start() {
       next(error);
     }
   });
-  wss.on("connection", (socket) => {
+  wss.on("connection", (socket, request) => {
+    if (!isAllowedLocalOrigin(request.headers.origin, port)) {
+      socket.close(1008, "Invalid Origin");
+      return;
+    }
     clients.add(socket);
     activeClient = socket;
     socket.send(JSON.stringify({ type: "server:state", payload: session ? statePayload() : null }));
@@ -34028,8 +34088,9 @@ async function start() {
   }
   app.use((error, _request, response, _next) => {
     const message = error instanceof Error ? error.message : String(error);
+    const statusCode = error instanceof HttpError ? error.statusCode : 500;
     console.error("[ai-huabu] api error", message);
-    response.status(500).json({ ok: false, error: message });
+    response.status(statusCode).json({ ok: false, error: message });
   });
   server.listen(port, "127.0.0.1", () => {
     console.error(`[ai-huabu] listening on http://127.0.0.1:${port}/`);

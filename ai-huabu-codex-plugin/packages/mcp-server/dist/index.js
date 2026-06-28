@@ -11122,7 +11122,7 @@ var canvasSkillCategorySchema = external_exports.enum([
   "studio"
 ]);
 var canvasActionSchema = external_exports.object({
-  id: external_exports.string(),
+  id: external_exports.string().min(1),
   type: external_exports.enum([
     "import_image",
     "create_artboard",
@@ -11162,7 +11162,7 @@ var insertImageIntoHolderInputSchema = external_exports.object({
   title: external_exports.string().default("AI \u56FE\u7247")
 });
 var importImageAssetInputSchema = openCanvasInputSchema.extend({
-  inputPath: external_exports.string(),
+  inputPath: external_exports.string().min(1),
   source: canvasImageSourceSchema.default("upload"),
   title: external_exports.string().default("\u5916\u90E8\u5BFC\u5165\u56FE\u7247"),
   placement: external_exports.enum(["viewport_center", "selection_right", "absolute"]).default("selection_right"),
@@ -11188,8 +11188,8 @@ var collectAnnotationsInputSchema = external_exports.object({
   includeScreenshot: external_exports.boolean().default(true)
 });
 var createImageVersionInputSchema = external_exports.object({
-  sourceShapeId: external_exports.string(),
-  imagePath: external_exports.string(),
+  sourceShapeId: external_exports.string().min(1),
+  imagePath: external_exports.string().min(1),
   placement: external_exports.enum(["right", "replace"]).default("right"),
   title: external_exports.string().default("AI \u56FE\u7247 v2"),
   runId: external_exports.string().optional(),
@@ -11200,7 +11200,7 @@ var createImageVersionInputSchema = external_exports.object({
   h: external_exports.number().positive().optional()
 });
 var applyCanvasActionsInputSchema = openCanvasInputSchema.extend({
-  actions: external_exports.array(canvasActionSchema)
+  actions: external_exports.array(canvasActionSchema).min(1)
 });
 var listCanvasSkillsInputSchema = external_exports.object({
   category: canvasSkillCategorySchema.optional()
@@ -11210,19 +11210,19 @@ var recommendCanvasSkillsInputSchema = openCanvasInputSchema.extend({
   maxResults: external_exports.number().int().positive().max(10).default(5)
 });
 var prepareSkillRunInputSchema = openCanvasInputSchema.extend({
-  skillId: external_exports.string(),
+  skillId: external_exports.string().min(1),
   userRequest: external_exports.string().optional(),
   selectionMode: external_exports.enum(["current"]).default("current")
 });
 var runCanvasSkillInputSchema = openCanvasInputSchema.extend({
-  runId: external_exports.string(),
+  runId: external_exports.string().min(1),
   overrides: external_exports.record(external_exports.unknown()).optional()
 });
 var getSkillRunInputSchema = external_exports.object({
-  runId: external_exports.string()
+  runId: external_exports.string().min(1)
 });
 var submitSkillRequestInputSchema = openCanvasInputSchema.extend({
-  skillId: external_exports.string(),
+  skillId: external_exports.string().min(1),
   userRequest: external_exports.string().optional(),
   brief: external_exports.record(external_exports.unknown()).optional(),
   inputDataUrl: external_exports.string().optional(),
@@ -11235,10 +11235,10 @@ var watchSkillRequestsInputSchema = openCanvasInputSchema.extend({
   includeCompleted: external_exports.boolean().default(false)
 });
 var getSkillRequestInputSchema = external_exports.object({
-  requestId: external_exports.string()
+  requestId: external_exports.string().min(1)
 });
 var updateSkillRequestInputSchema = external_exports.object({
-  requestId: external_exports.string(),
+  requestId: external_exports.string().min(1),
   status: editRequestStatusSchema,
   error: external_exports.string().optional(),
   result: external_exports.record(external_exports.unknown()).optional()
@@ -11265,10 +11265,10 @@ var watchEditRequestsInputSchema = openCanvasInputSchema.extend({
   includeCompleted: external_exports.boolean().default(false)
 });
 var getEditRequestInputSchema = external_exports.object({
-  requestId: external_exports.string()
+  requestId: external_exports.string().min(1)
 });
 var updateEditRequestInputSchema = external_exports.object({
-  requestId: external_exports.string(),
+  requestId: external_exports.string().min(1),
   status: editRequestStatusSchema,
   error: external_exports.string().optional(),
   result: external_exports.record(external_exports.unknown()).optional()
