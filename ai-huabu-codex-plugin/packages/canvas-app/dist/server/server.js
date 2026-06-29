@@ -34053,6 +34053,9 @@ async function start() {
           session.shapes = message.payload.shapes ?? [];
           session.selection = message.payload.selection ?? session.selection;
           await persistSession();
+          if (message.requestSaveFeedback && socket.readyState === import_websocket.default.OPEN) {
+            socket.send(JSON.stringify({ type: "server:saved", savedAt: nowIso() }));
+          }
           return;
         }
         if (message.type === "response" && message.id) {

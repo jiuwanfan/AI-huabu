@@ -3925,6 +3925,7 @@ async function start() {
           result?: unknown
           error?: string
           payload?: Partial<CanvasStatePayload>
+          requestSaveFeedback?: boolean
         }
 
         if (message.type === 'client:state' && session && message.payload) {
@@ -3932,6 +3933,9 @@ async function start() {
           session.shapes = message.payload.shapes ?? []
           session.selection = message.payload.selection ?? session.selection
           await persistSession()
+          if (message.requestSaveFeedback && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: 'server:saved', savedAt: nowIso() }))
+          }
           return
         }
 

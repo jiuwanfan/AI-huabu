@@ -21,6 +21,7 @@ import {
   toRichText
 } from 'tldraw'
 import {
+  AlertCircle,
   ArrowRight,
   Box,
   Braces,
@@ -31,9 +32,10 @@ import {
   Image as ImageIcon,
   Layers3,
   Lock,
+  LoaderCircle,
   MousePointer2,
   PanelRightOpen,
-  Save,
+  RotateCcw,
   Sparkles,
   SlidersHorizontal,
   Unlock,
@@ -66,7 +68,7 @@ type WsCommand = {
   payload: Record<string, unknown>
 }
 
-type Status = 'connecting' | 'connected' | 'saved' | 'error'
+type Status = 'connecting' | 'connected' | 'saving' | 'saved' | 'error'
 
 type ImportSource = 'upload' | 'drag_drop' | 'paste'
 
@@ -422,7 +424,7 @@ function clearEditorPage(editor: Editor) {
   editor.clearHistory()
 }
 
-type FloatingToolId = 'select' | 'holder' | 'save' | 'skills' | 'style'
+type FloatingToolId = 'select' | 'holder' | 'style'
 
 const floatingTools: Array<{
   id: FloatingToolId
@@ -431,11 +433,64 @@ const floatingTools: Array<{
 }> = [
   { id: 'select', title: '选择', icon: MousePointer2 },
   { id: 'holder', title: '新建图片框', icon: Box },
-  { id: 'save', title: '保存画布', icon: Save },
-  { id: 'skills', title: '打开 Skill 面板', icon: PanelRightOpen }
-  ,
-  { id: 'style', title: 'Style panel', icon: SlidersHorizontal }
+  { id: 'style', title: '样式', icon: SlidersHorizontal }
 ]
+
+const SKILL_CATEGORY_LABELS: Record<CanvasSkillCategory, string> = {
+  social_media: '社交媒体',
+  e_commerce: '电商',
+  branding: '品牌',
+  marketing: '营销',
+  studio: '创作工具'
+}
+
+type TaskTone = 'idle' | 'queued' | 'processing' | 'completed' | 'failed'
+
+function formatClockTime(value?: string | null) {
+  if (!value) return undefined
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return undefined
+  return new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).format(date)
+}
+
+function firstTaskLine(value: string) {
+  return value
+    .split('\n')
+    .map((line) => line.trim())
+    .find(Boolean) ?? ''
+}
+
+function TaskCard(props: {
+  title: string
+  status: string
+  tone: TaskTone
+  detail: string
+  updatedAt?: string | null
+}) {
+  const time = formatClockTime(props.updatedAt)
+  return (
+    <article className={`task-card task-card--${props.tone}`}>
+      <div className="task-card-heading">
+        <strong>{props.title}</strong>
+        <span className="task-status">
+          <i aria-hidden="true" />
+          {props.status}
+        </span>
+      </div>
+      <p>{props.detail}</p>
+      {props.tone === 'queued' || props.tone === 'processing' ? (
+        <div className="task-progress" aria-label={props.status}>
+          <span />
+        </div>
+      ) : null}
+      {time ? <small>更新于 {time}</small> : null}
+    </article>
+  )
+}
 
 function zoomAtScreenPoint(editor: Editor, point: { x: number; y: number }, factor: number) {
   const camera = editor.getCamera()
@@ -456,6 +511,7 @@ export function App() {
   const editorRef = useRef<Editor | null>(null)
   const socketRef = useRef<WebSocket | null>(null)
   const reportTimerRef = useRef<number | null>(null)
+  const saveAckTimerRef = useRef<number | null>(null)
   const stateRef = useRef<CanvasStatePayload | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const rightDragRef = useRef<{
@@ -468,8 +524,11 @@ export function App() {
   }>({ active: false, moved: false, startX: 0, startY: 0, lastX: 0, lastY: 0 })
   const [state, setState] = useState<CanvasStatePayload | null>(null)
   const [status, setStatus] = useState<Status>('connecting')
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [lastError, setLastError] = useState<string | null>(null)
   const [annotationPreview, setAnnotationPreview] = useState<string>('还没有提交修图任务。')
+  const [annotationTaskUpdatedAt, setAnnotationTaskUpdatedAt] = useState<string | null>(null)
   const [importStatus, setImportStatus] = useState<string>('拖拽、粘贴或上传图片后，可直接调用 Skill。')
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false)
   const [queueStatus, setQueueStatus] = useState<EditRequestQueueStatus | null>(null)
@@ -490,11 +549,14 @@ export function App() {
   const [marketingBrochureBrief, setMarketingBrochureBrief] =
     useState<MarketingBrochureBriefForm>(DEFAULT_MARKETING_BROCHURE_BRIEF)
   const [skillRunPreview, setSkillRunPreview] = useState<string>('还没有运行 Skill。')
+  const [skillTaskUpdatedAt, setSkillTaskUpdatedAt] = useState<string | null>(null)
   const [skillInlineStatus, setSkillInlineStatus] = useState<string>('')
   const [isRunningSkill, setIsRunningSkill] = useState(false)
   const [isStylePanelCollapsed, setIsStylePanelCollapsed] = useState(true)
   const [isSizePanelOpen, setIsSizePanelOpen] = useState(true)
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false)
+  const [isLeftSidebarMobileOpen, setIsLeftSidebarMobileOpen] = useState(false)
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false)
   const [isAspectLocked, setIsAspectLocked] = useState(true)
   const [activeFloatingTool, setActiveFloatingTool] = useState<FloatingToolId>('select')
   const [selectedPanelImage, setSelectedPanelImage] = useState<ShapeSummary | undefined>(undefined)
@@ -508,6 +570,7 @@ export function App() {
     () => state?.shapes.filter((shape) => shape.role === 'ai_image') ?? [],
     [state]
   )
+  const isCanvasEmpty = Boolean(state && state.shapes.length === 0)
   const selectedImage = useMemo(
     () => selected.find((shape) => shape.role === 'ai_image') ?? selected.find((shape) => shape.type === 'image'),
     [selected]
@@ -604,6 +667,52 @@ export function App() {
     }
   }, [queueStatus])
 
+  const annotationTaskView = useMemo(() => {
+    const detail = firstTaskLine(annotationPreview)
+    if (isSubmittingEdit) {
+      return { status: '提交中', tone: 'processing' as TaskTone, detail }
+    }
+    if (annotationPreview === '还没有提交修图任务。') {
+      return { status: '未开始', tone: 'idle' as TaskTone, detail: '在图片上添加标注后，可提交给 Codex 修图。' }
+    }
+    if (annotationPreview.includes('失败') || annotationPreview.includes('错误')) {
+      return { status: '失败', tone: 'failed' as TaskTone, detail }
+    }
+    if (annotationPreview.includes('还没有可修改') || annotationPreview.includes('不够明确')) {
+      return { status: '需补充', tone: 'idle' as TaskTone, detail }
+    }
+    if (queueStatus?.processingCount) {
+      return { status: '处理中', tone: 'processing' as TaskTone, detail }
+    }
+    if (queueStatus?.queuedCount || annotationPreview.includes('已提交') || annotationPreview.includes('已保存')) {
+      return { status: '等待 Codex', tone: 'queued' as TaskTone, detail }
+    }
+    return { status: '已记录', tone: 'completed' as TaskTone, detail }
+  }, [annotationPreview, isSubmittingEdit, queueStatus])
+
+  const skillTaskView = useMemo(() => {
+    const detail = firstTaskLine(skillRunPreview)
+    if (isRunningSkill) {
+      return { status: '提交中', tone: 'processing' as TaskTone, detail }
+    }
+    if (skillRunPreview === '还没有运行 Skill。') {
+      return { status: '未开始', tone: 'idle' as TaskTone, detail: '选择一个 Skill 并填写需求后即可提交。' }
+    }
+    if (skillRunPreview.includes('失败') || skillRunPreview.includes('无法读取')) {
+      return { status: '失败', tone: 'failed' as TaskTone, detail }
+    }
+    if (skillRunPreview.includes('needs_clarification') || skillRunPreview.includes('待补充')) {
+      return { status: '需补充', tone: 'idle' as TaskTone, detail }
+    }
+    if (skillRunPreview.includes('queued') || skillRunPreview.includes('已提交')) {
+      return { status: '等待 Codex', tone: 'queued' as TaskTone, detail }
+    }
+    if (skillRunPreview.includes('completed') || skillRunPreview.includes('已完成')) {
+      return { status: '已完成', tone: 'completed' as TaskTone, detail }
+    }
+    return { status: '已记录', tone: 'completed' as TaskTone, detail }
+  }, [isRunningSkill, skillRunPreview])
+
   const refreshQueueStatus = useCallback(async () => {
     try {
       const nextStatus = await getJson<EditRequestQueueStatus>('/api/canvas/edit-requests/status')
@@ -629,7 +738,7 @@ export function App() {
     }
   }, [refreshQueueStatus])
 
-  const reportState = useCallback(() => {
+  const reportState = useCallback((requestSaveFeedback = true) => {
     const editor = editorRef.current
     const socket = socketRef.current
     const currentState = stateRef.current
@@ -650,7 +759,16 @@ export function App() {
         shapes: selectionShapes
       }
     }
-    socket.send(JSON.stringify({ type: 'client:state', payload }))
+    if (requestSaveFeedback) {
+      setStatus('saving')
+      setSaveError(null)
+      if (saveAckTimerRef.current) window.clearTimeout(saveAckTimerRef.current)
+      saveAckTimerRef.current = window.setTimeout(() => {
+        setSaveError('自动保存确认超时，请重试。')
+        setStatus('error')
+      }, 5000)
+    }
+    socket.send(JSON.stringify({ type: 'client:state', payload, requestSaveFeedback }))
     const nextState = {
       ...currentState,
       shapes,
@@ -659,7 +777,6 @@ export function App() {
     }
     stateRef.current = nextState
     setState(nextState)
-    setStatus('saved')
   }, [])
 
   const queueReportState = useCallback(() => {
@@ -1404,9 +1521,20 @@ export function App() {
         }
         socket.onmessage = (event) => {
           const message = JSON.parse(String(event.data))
+          if (message.type === 'server:saved') {
+            if (saveAckTimerRef.current) window.clearTimeout(saveAckTimerRef.current)
+            saveAckTimerRef.current = null
+            setLastSavedAt(message.savedAt ?? new Date().toISOString())
+            setSaveError(null)
+            setStatus('saved')
+            return
+          }
           if (message.type === 'command') void handleCommand(message)
         }
         socket.onerror = () => {
+          if (saveAckTimerRef.current) window.clearTimeout(saveAckTimerRef.current)
+          saveAckTimerRef.current = null
+          setSaveError('自动保存连接失败，请重试。')
           setStatus('error')
           setLastError('WebSocket connection failed')
         }
@@ -1422,7 +1550,7 @@ export function App() {
           { scope: 'all' } as any
         )
 
-        interval = window.setInterval(queueReportState, 2000)
+        interval = window.setInterval(() => reportState(false), 2000)
       })().catch((error) => {
         setStatus('error')
         setLastError(error instanceof Error ? error.message : String(error))
@@ -1431,11 +1559,12 @@ export function App() {
       return () => {
         disposed = true
         if (interval) window.clearInterval(interval)
+        if (saveAckTimerRef.current) window.clearTimeout(saveAckTimerRef.current)
         unlisten?.()
         socketRef.current?.close()
       }
     },
-    [applyPendingOperations, handleCommand, queueReportState]
+    [applyPendingOperations, handleCommand, queueReportState, reportState]
   )
 
   const createDefaultHolder = async () => {
@@ -1456,11 +1585,18 @@ export function App() {
 
   const saveSnapshot = async () => {
     try {
+      setStatus('saving')
+      setSaveError(null)
       reportState()
-      await postJson('/api/canvas/save', {})
+      const result = await postJson<{ savedAt?: string }>('/api/canvas/save', {})
+      if (saveAckTimerRef.current) window.clearTimeout(saveAckTimerRef.current)
+      saveAckTimerRef.current = null
+      setLastSavedAt(result.savedAt ?? new Date().toISOString())
       setStatus('saved')
     } catch (error) {
-      setLastError(error instanceof Error ? error.message : String(error))
+      const message = error instanceof Error ? error.message : String(error)
+      setSaveError(message)
+      setLastError(message)
       setStatus('error')
     }
   }
@@ -1589,14 +1725,6 @@ export function App() {
       await createDefaultHolder()
       return
     }
-    if (toolId === 'save') {
-      saveSnapshot()
-      return
-    }
-    if (toolId === 'skills') {
-      await openSkillPanel()
-      return
-    }
     if (toolId === 'style') {
       setIsStylePanelCollapsed((value) => !value)
     }
@@ -1674,10 +1802,12 @@ export function App() {
     if (selectedSkillDisabledReason) {
       setSkillInlineStatus(selectedSkillDisabledReason)
       setSkillRunPreview(selectedSkillDisabledReason)
+      setSkillTaskUpdatedAt(new Date().toISOString())
       return
     }
     try {
       setIsRunningSkill(true)
+      setSkillTaskUpdatedAt(new Date().toISOString())
       const preparingMessage = `正在提交 ${selectedSkill.name} 给 Codex...`
       setSkillInlineStatus(preparingMessage)
       setSkillRunPreview(preparingMessage)
@@ -1763,10 +1893,12 @@ export function App() {
           : '当前图片数据无法读取。请用顶部「导入图片」、拖拽或粘贴重新导入后再提交。'
       )
       setSkillRunPreview(preview)
+      setSkillTaskUpdatedAt(new Date().toISOString())
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setSkillInlineStatus(`Skill 运行失败：${message}`)
       setSkillRunPreview(`Skill 运行失败：${message}`)
+      setSkillTaskUpdatedAt(new Date().toISOString())
       setLastError(message)
       setStatus('error')
     } finally {
@@ -1778,10 +1910,12 @@ export function App() {
     const target = selected.find((shape) => shape.role === 'ai_image') ?? aiImages[0]
     if (!target) {
       setAnnotationPreview('还没有可修改的 AI 图片。请先让 Codex 生成并插入一张图片。')
+      setAnnotationTaskUpdatedAt(new Date().toISOString())
       return
     }
     try {
       setIsSubmittingEdit(true)
+      setAnnotationTaskUpdatedAt(new Date().toISOString())
       setAnnotationPreview('正在保存这批标注，并提交给 Codex...')
       const statusBeforeSubmit = queueStatus ?? (await refreshQueueStatus())
       reportState()
@@ -1831,6 +1965,7 @@ export function App() {
           .filter((line) => line !== undefined)
           .join('\n')
       )
+      setAnnotationTaskUpdatedAt(new Date().toISOString())
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : String(error)
       const message = rawMessage.includes('Cannot POST /api/canvas/edit-request')
@@ -1839,14 +1974,36 @@ export function App() {
       setLastError(message)
       setStatus('error')
       setAnnotationPreview(`提交修图任务失败：${message}`)
+      setAnnotationTaskUpdatedAt(new Date().toISOString())
     } finally {
       setIsSubmittingEdit(false)
     }
   }
 
   return (
-    <div className={isLeftSidebarCollapsed ? 'app-shell app-shell-left-collapsed' : 'app-shell'}>
+    <div
+      className={[
+        'app-shell',
+        isLeftSidebarCollapsed ? 'app-shell-left-collapsed' : '',
+        isLeftSidebarMobileOpen ? 'left-sidebar-mobile-open' : '',
+        isRightSidebarOpen ? 'right-sidebar-open' : ''
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <header className="topbar">
+        <button
+          className="topbar-panel-button topbar-left-panel-button"
+          aria-label="打开画布内容侧栏"
+          aria-expanded={isLeftSidebarMobileOpen}
+          type="button"
+          onClick={() => {
+            setIsRightSidebarOpen(false)
+            setIsLeftSidebarMobileOpen(true)
+          }}
+        >
+          <Layers3 size={18} />
+        </button>
         <div className="brand">
           <Sparkles size={18} />
           <span>AI Huabu</span>
@@ -1855,14 +2012,34 @@ export function App() {
           <strong>{state?.metadata.name ?? 'Untitled AI Huabu'}</strong>
           <span>{state?.canvasId ?? 'opening...'}</span>
         </div>
-        <div className={`save-status save-status--${status}`}>
-          <CheckCircle2 size={15} />
-          {status === 'saved' ? '已保存' : status === 'connected' ? '已连接' : status === 'error' ? '错误' : '连接中'}
+        <div className={`save-status save-status--${status}`} title={saveError ?? undefined}>
+          {status === 'saving' ? (
+            <LoaderCircle className="save-status-spinner" size={15} />
+          ) : status === 'error' ? (
+            <AlertCircle size={15} />
+          ) : (
+            <CheckCircle2 size={15} />
+          )}
+          <span>
+            {status === 'saving'
+              ? '自动保存中…'
+              : status === 'saved'
+                ? `已自动保存${formatClockTime(lastSavedAt) ? ` · ${formatClockTime(lastSavedAt)}` : ''}`
+                : status === 'connected'
+                  ? '已连接'
+                  : status === 'error'
+                    ? saveError
+                      ? '保存失败'
+                      : '操作失败'
+                    : '连接中'}
+          </span>
+          {saveError ? (
+            <button className="save-retry-button" type="button" onClick={() => void saveSnapshot()}>
+              <RotateCcw size={13} />
+              <span>重试</span>
+            </button>
+          ) : null}
         </div>
-        <button className="topbar-button" onClick={saveSnapshot}>
-          <Save size={16} />
-          保存画布
-        </button>
         <input
           ref={fileInputRef}
           className="hidden-file-input"
@@ -1870,13 +2047,36 @@ export function App() {
           accept="image/png,image/jpeg,image/webp"
           onChange={handleFileInput}
         />
-        <button className="topbar-button" onClick={() => fileInputRef.current?.click()}>
+        <button
+          className="topbar-button"
+          aria-label="导入图片"
+          title="导入图片"
+          onClick={() => fileInputRef.current?.click()}
+        >
           <Upload size={16} />
-          导入图片
+          <span className="topbar-button-label">导入图片</span>
+        </button>
+        <button
+          className="topbar-panel-button topbar-right-panel-button"
+          aria-label="打开 AI 操作侧栏"
+          aria-expanded={isRightSidebarOpen}
+          type="button"
+          onClick={() => {
+            setIsLeftSidebarMobileOpen(false)
+            setIsRightSidebarOpen(true)
+          }}
+        >
+          <PanelRightOpen size={18} />
         </button>
       </header>
 
       <aside className={isLeftSidebarCollapsed ? 'sidebar sidebar-left sidebar-left-collapsed' : 'sidebar sidebar-left'}>
+        <div className="sidebar-mobile-header sidebar-left-mobile-header">
+          <strong>画布内容</strong>
+          <button aria-label="关闭画布内容侧栏" type="button" onClick={() => setIsLeftSidebarMobileOpen(false)}>
+            <ChevronLeft size={18} />
+          </button>
+        </div>
         <div className="sidebar-left-content">
         <section>
           <h2>Pages</h2>
@@ -1940,6 +2140,32 @@ export function App() {
             cameraOptions={{ wheelBehavior: 'none' }}
           />
         </div>
+        {isCanvasEmpty ? (
+          <div className="canvas-empty-state">
+            <div className="canvas-empty-card" onPointerDown={(event) => event.stopPropagation()}>
+              <div className="canvas-empty-icon">
+                <Sparkles size={20} />
+              </div>
+              <h1>从一个起点开始创作</h1>
+              <p>导入现有图片，或先建立一个图片框，再让 Codex 帮你生成和修改。</p>
+              <ol className="canvas-empty-steps">
+                <li><span>1</span><strong>上传图片或新建图片框</strong></li>
+                <li><span>2</span><strong>回到 Codex 描述想要的画面</strong></li>
+                <li><span>3</span><strong>在画布标注后提交修图</strong></li>
+              </ol>
+              <div className="canvas-empty-actions">
+                <button className="primary-action" onClick={() => fileInputRef.current?.click()}>
+                  <Upload size={16} />
+                  上传图片
+                </button>
+                <button className="action" onClick={createDefaultHolder}>
+                  <Box size={16} />
+                  新建图片框
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
         {panelImage && selectedImageSize ? (
           <div
             className={isSizePanelOpen ? 'image-size-panel' : 'image-size-panel image-size-panel-collapsed'}
@@ -2019,9 +2245,7 @@ export function App() {
           {floatingTools.map((tool) => {
             const Icon = tool.icon
             const isToolActive =
-              tool.id === 'skills'
-                ? isSkillPanelOpen
-                : tool.id === 'style'
+              tool.id === 'style'
                   ? !isStylePanelCollapsed
                   : activeFloatingTool === tool.id
             return (
@@ -2036,54 +2260,33 @@ export function App() {
               </button>
             )
           })}
-          <button title="新建图片框" onClick={createDefaultHolder}>
-            <Box size={18} />
-          </button>
-          <button title="保存画布" onClick={saveSnapshot}>
-            <Save size={18} />
-          </button>
-          <button title="打开 Skill 面板" onClick={openSkillPanel}>
-            <PanelRightOpen size={18} />
-          </button>
         </div>
       </main>
 
       <aside className="sidebar sidebar-right">
-        <section>
-          <h2>图片导入</h2>
-          <button className="primary-action" onClick={() => fileInputRef.current?.click()}>
-            <Upload size={16} />
-            上传图片
+        <div className="sidebar-mobile-header">
+          <strong>AI 操作</strong>
+          <button aria-label="关闭 AI 操作侧栏" type="button" onClick={() => setIsRightSidebarOpen(false)}>
+            <ChevronRight size={18} />
           </button>
-          <p className="empty">{importStatus}</p>
-        </section>
+        </div>
         <section>
           <h2>AI 操作</h2>
           <div className={`listener-card listener-card--${listenerView.kind}`}>
             <strong>{listenerView.title}</strong>
             <span>{listenerView.detail}</span>
           </div>
-          <button className="primary-action" onClick={createDefaultHolder}>
-            <Box size={16} />
-            新建图片框
-          </button>
           <button className="action" onClick={submitAnnotationEdit}>
             <Wand2 size={16} />
             {isSubmittingEdit ? '正在提交' : '按标注修图'}
           </button>
-          <details className="advanced-actions">
-            <summary>更多操作</summary>
-            <button className="action" onClick={saveSnapshot}>
-              <Save size={16} />
-              保存画布
-            </button>
-          </details>
+          <p className="operation-message">{importStatus}</p>
         </section>
         <section>
-          <h2>Skills</h2>
-          <button className="action" onClick={openSkillPanel}>
+          <h2>技能</h2>
+          <button className="action" aria-expanded={isSkillPanelOpen} onClick={openSkillPanel}>
             <PanelRightOpen size={16} />
-            打开 Skill 面板
+            {isSkillPanelOpen ? '收起 Skill 面板' : '打开 Skill 面板'}
           </button>
           {isSkillPanelOpen ? (
             <div className="skill-panel">
@@ -2093,9 +2296,15 @@ export function App() {
                     <button
                       className={category === activeSkillCategory ? 'skill-tab skill-tab-active' : 'skill-tab'}
                       key={category}
-                      onClick={() => setActiveSkillCategory(category)}
+                      role="tab"
+                      aria-selected={category === activeSkillCategory}
+                      onClick={() => {
+                        setActiveSkillCategory(category)
+                        setSelectedSkillId(null)
+                        setSkillInlineStatus('')
+                      }}
                     >
-                      {category.replace('_', ' ')}
+                      {SKILL_CATEGORY_LABELS[category]}
                     </button>
                   )
                 )}
@@ -2120,9 +2329,14 @@ export function App() {
                               ? 'skill-row skill-row-recommended'
                               : 'skill-row'
                         }
+                        aria-pressed={selectedSkillId === skill.id}
                         disabled={disabled}
                         key={skill.id}
-                        onClick={() => setSelectedSkillId(skill.id)}
+                        onClick={() => {
+                          const shouldClear = selectedSkillId === skill.id
+                          setSelectedSkillId(shouldClear ? null : skill.id)
+                          if (shouldClear) setSkillInlineStatus('')
+                        }}
                       >
                         <span>
                           <strong>{skill.name}</strong>
@@ -2822,8 +3036,22 @@ export function App() {
         </section>
         <section>
           <h2>任务记录</h2>
-          <pre className="json-preview">{annotationPreview}</pre>
-          <pre className="json-preview">{skillRunPreview}</pre>
+          <div className="task-list">
+            <TaskCard
+              title="标注修图"
+              status={annotationTaskView.status}
+              tone={annotationTaskView.tone}
+              detail={annotationTaskView.detail}
+              updatedAt={annotationTaskUpdatedAt}
+            />
+            <TaskCard
+              title="Skill 生成"
+              status={skillTaskView.status}
+              tone={skillTaskView.tone}
+              detail={skillTaskView.detail}
+              updatedAt={skillTaskUpdatedAt}
+            />
+          </div>
         </section>
         <section>
           <h2>保存位置</h2>
@@ -2831,6 +3059,18 @@ export function App() {
           {lastError ? <p className="error-text">{lastError}</p> : null}
         </section>
       </aside>
+
+      {isLeftSidebarMobileOpen || isRightSidebarOpen ? (
+        <button
+          className="sidebar-backdrop"
+          aria-label="关闭侧栏"
+          type="button"
+          onClick={() => {
+            setIsLeftSidebarMobileOpen(false)
+            setIsRightSidebarOpen(false)
+          }}
+        />
+      ) : null}
 
       <footer className="statusbar">
         <span>{holders.length} holders</span>
