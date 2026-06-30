@@ -30,6 +30,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  History,
   Image as ImageIcon,
   Layers3,
   Lock,
@@ -2317,6 +2318,36 @@ export function App() {
             <ChevronLeft size={18} />
           </button>
         </div>
+        <nav className="sidebar-left-rail" aria-label="画布内容导航">
+          <button
+            className="sidebar-left-rail-item sidebar-left-rail-item-active"
+            aria-label="主画布"
+            type="button"
+            onClick={() => setIsLeftSidebarCollapsed(false)}
+          >
+            <Layers3 size={18} />
+            <span className="sidebar-left-rail-tooltip" aria-hidden="true">主画布</span>
+          </button>
+          <span className="sidebar-left-rail-divider" aria-hidden="true" />
+          <button
+            className="sidebar-left-rail-item"
+            aria-label={`图片，${aiImages.length} 张`}
+            type="button"
+            onClick={() => setIsLeftSidebarCollapsed(false)}
+          >
+            <ImageIcon size={18} />
+            <span className="sidebar-left-rail-tooltip" aria-hidden="true">图片 · {aiImages.length}</span>
+          </button>
+          <button
+            className="sidebar-left-rail-item"
+            aria-label={`版本，${aiImages.length} 个`}
+            type="button"
+            onClick={() => setIsLeftSidebarCollapsed(false)}
+          >
+            <History size={18} />
+            <span className="sidebar-left-rail-tooltip" aria-hidden="true">版本 · {aiImages.length}</span>
+          </button>
+        </nav>
         <div className="sidebar-left-content">
         <section>
           <h2>页面</h2>
