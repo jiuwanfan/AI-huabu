@@ -30958,22 +30958,44 @@ async function openSession(input) {
   await persistSession();
   return session;
 }
-async function persistSession() {
+var FULL_PERSIST = {
+  metadata: true,
+  snapshot: true,
+  summary: true,
+  operations: true
+};
+async function persistSession(options = FULL_PERSIST) {
   if (!session) return;
-  session.metadata.updatedAt = nowIso();
-  await writeJson(path.join(session.storagePath, "metadata.json"), session.metadata);
-  if (session.snapshot) {
+  const updatedAt = nowIso();
+  if (options.metadata) {
+    session.metadata.updatedAt = updatedAt;
+    await writeJson(path.join(session.storagePath, "metadata.json"), session.metadata);
+  }
+  if (options.snapshot && session.snapshot) {
     await writeJson(path.join(session.storagePath, "canvas.json"), session.snapshot);
   }
-  await writeJson(path.join(session.storagePath, "state-summary.json"), {
-    selection: session.selection,
-    shapes: session.shapes,
-    updatedAt: session.metadata.updatedAt
-  });
-  await writeJson(
-    path.join(session.storagePath, "operations", "pending.json"),
-    session.pendingOperations
+  if (options.summary) {
+    await writeJson(path.join(session.storagePath, "state-summary.json"), {
+      selection: session.selection,
+      shapes: session.shapes,
+      updatedAt
+    });
+  }
+  if (options.operations) {
+    await writeJson(
+      path.join(session.storagePath, "operations", "pending.json"),
+      session.pendingOperations
+    );
+  }
+}
+var clientStatePersistQueue = Promise.resolve();
+function queueClientStatePersist(options) {
+  const nextPersist = clientStatePersistQueue.then(
+    () => persistSession(options),
+    () => persistSession(options)
   );
+  clientStatePersistQueue = nextPersist.catch(() => void 0);
+  return nextPersist;
 }
 function statePayload() {
   if (!session) {
@@ -34051,10 +34073,21 @@ async function start() {
       try {
         const message = JSON.parse(String(raw));
         if (message.type === "client:state" && session && message.payload) {
-          session.snapshot = message.payload.snapshot;
-          session.shapes = message.payload.shapes ?? [];
-          session.selection = message.payload.selection ?? session.selection;
-          await persistSession();
+          const hasSnapshot = Object.prototype.hasOwnProperty.call(message.payload, "snapshot");
+          const hasShapes = Object.prototype.hasOwnProperty.call(message.payload, "shapes");
+          const hasSelection = Object.prototype.hasOwnProperty.call(message.payload, "selection");
+          if (hasSnapshot) session.snapshot = message.payload.snapshot;
+          if (hasShapes) session.shapes = message.payload.shapes ?? [];
+          if (hasSelection) session.selection = message.payload.selection ?? session.selection;
+          const documentChanged = hasSnapshot || hasShapes;
+          if (documentChanged || hasSelection) {
+            await queueClientStatePersist({
+              metadata: documentChanged,
+              snapshot: hasSnapshot,
+              summary: documentChanged || hasSelection,
+              operations: false
+            });
+          }
           if (message.requestSaveFeedback && socket.readyState === import_websocket.default.OPEN) {
             socket.send(JSON.stringify({ type: "server:saved", savedAt: nowIso() }));
           }

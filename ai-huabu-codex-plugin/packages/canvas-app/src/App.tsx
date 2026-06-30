@@ -345,6 +345,20 @@ function selectedEditorImageSummary(editor: Editor): ShapeSummary | undefined {
   return selectedShape ? summarizeShape(editor, selectedShape) : undefined
 }
 
+function samePanelImage(left?: ShapeSummary, right?: ShapeSummary) {
+  if (left === right) return true
+  if (!left || !right) return false
+  return (
+    left.id === right.id &&
+    left.version === right.version &&
+    left.assetPath === right.assetPath &&
+    left.bounds.x === right.bounds.x &&
+    left.bounds.y === right.bounds.y &&
+    left.bounds.w === right.bounds.w &&
+    left.bounds.h === right.bounds.h
+  )
+}
+
 function loadImageDimensions(src: string) {
   return new Promise<{ w: number; h: number }>((resolve, reject) => {
     const image = new Image()
@@ -399,11 +413,12 @@ async function imageUrlToDataUrl(url: string) {
   return blobToDataUrl(blob)
 }
 
-function postJson<T>(url: string, body: unknown): Promise<T> {
+function postJson<T>(url: string, body: unknown, options?: { signal?: AbortSignal }): Promise<T> {
   return fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    signal: options?.signal
   }).then(async (response) => {
     if (!response.ok) throw new Error(await response.text())
     return response.json() as Promise<T>
@@ -511,7 +526,12 @@ export function App() {
   const editorRef = useRef<Editor | null>(null)
   const socketRef = useRef<WebSocket | null>(null)
   const reportTimerRef = useRef<number | null>(null)
+  const reportMaxWaitTimerRef = useRef<number | null>(null)
+  const documentDirtyRef = useRef(false)
+  const selectionDirtyRef = useRef(false)
   const saveAckTimerRef = useRef<number | null>(null)
+  const skillRecommendationTimerRef = useRef<number | null>(null)
+  const skillRecommendationAbortRef = useRef<AbortController | null>(null)
   const stateRef = useRef<CanvasStatePayload | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const rightDragRef = useRef<{
@@ -743,9 +763,16 @@ export function App() {
     const socket = socketRef.current
     const currentState = stateRef.current
     if (!editor || !socket || socket.readyState !== WebSocket.OPEN || !currentState) return
+    if (reportTimerRef.current) window.clearTimeout(reportTimerRef.current)
+    if (reportMaxWaitTimerRef.current) window.clearTimeout(reportMaxWaitTimerRef.current)
+    reportTimerRef.current = null
+    reportMaxWaitTimerRef.current = null
+    documentDirtyRef.current = false
+    selectionDirtyRef.current = false
     const shapes = editor.getCurrentPageShapes().map((shape) => summarizeShape(editor, shape))
     const selectedShapeIds = editor.getSelectedShapeIds().map(String)
-    const selectionShapes = shapes.filter((shape) => selectedShapeIds.includes(shape.id))
+    const selectedShapeIdSet = new Set(selectedShapeIds)
+    const selectionShapes = shapes.filter((shape) => selectedShapeIdSet.has(shape.id))
     const payload: Partial<CanvasStatePayload> = {
       canvasId: currentState.canvasId,
       metadata: currentState.metadata,
@@ -779,10 +806,53 @@ export function App() {
     setState(nextState)
   }, [])
 
-  const queueReportState = useCallback(() => {
+  const reportSelection = useCallback(() => {
+    const editor = editorRef.current
+    const socket = socketRef.current
+    const currentState = stateRef.current
+    if (!editor || !socket || socket.readyState !== WebSocket.OPEN || !currentState) return
     if (reportTimerRef.current) window.clearTimeout(reportTimerRef.current)
-    reportTimerRef.current = window.setTimeout(reportState, 500)
-  }, [reportState])
+    if (reportMaxWaitTimerRef.current) window.clearTimeout(reportMaxWaitTimerRef.current)
+    reportTimerRef.current = null
+    reportMaxWaitTimerRef.current = null
+    selectionDirtyRef.current = false
+    const selectedShapeIds = editor.getSelectedShapeIds().map(String)
+    const selectedShapeIdSet = new Set(selectedShapeIds)
+    const selection = {
+      canvasId: currentState.canvasId,
+      pageId: currentState.metadata.activePageId,
+      selectedShapeIds,
+      shapes: currentState.shapes.filter((shape) => selectedShapeIdSet.has(shape.id))
+    }
+    socket.send(
+      JSON.stringify({
+        type: 'client:state',
+        payload: { canvasId: currentState.canvasId, selection },
+        requestSaveFeedback: false
+      })
+    )
+    const nextState = { ...currentState, selection }
+    stateRef.current = nextState
+    setState(nextState)
+  }, [])
+
+  const flushQueuedReport = useCallback(() => {
+    if (documentDirtyRef.current) {
+      reportState()
+      return
+    }
+    if (selectionDirtyRef.current) reportSelection()
+  }, [reportSelection, reportState])
+
+  const queueReportState = useCallback((scope: 'document' | 'selection' = 'document') => {
+    if (scope === 'document') documentDirtyRef.current = true
+    else selectionDirtyRef.current = true
+    if (reportTimerRef.current) window.clearTimeout(reportTimerRef.current)
+    reportTimerRef.current = window.setTimeout(flushQueuedReport, 500)
+    if (!reportMaxWaitTimerRef.current) {
+      reportMaxWaitTimerRef.current = window.setTimeout(flushQueuedReport, 2000)
+    }
+  }, [flushQueuedReport])
 
   const resizeSelectedImage = useCallback(
     (nextSize: { w: number; h: number }) => {
@@ -1491,8 +1561,14 @@ export function App() {
     (editor: Editor) => {
       editorRef.current = editor
       let disposed = false
-      let unlisten: (() => void) | undefined
-      let interval: number | undefined
+      let unlistenDocument: (() => void) | undefined
+      let unlistenSession: (() => void) | undefined
+      let lastSelectedShapeKey = ''
+
+      const updateSelectedPanelImage = () => {
+        const nextImage = selectedEditorImageSummary(editor)
+        setSelectedPanelImage((current) => (samePanelImage(current, nextImage) ? current : nextImage))
+      }
 
       void (async () => {
         const response = await fetch('/api/canvas/state')
@@ -1510,7 +1586,8 @@ export function App() {
           clearEditorPage(editor)
         }
         await applyPendingOperations(initialState.pendingOperations)
-        setSelectedPanelImage(selectedEditorImageSummary(editor))
+        updateSelectedPanelImage()
+        lastSelectedShapeKey = editor.getSelectedShapeIds().map(String).join('|')
 
         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
         const socket = new WebSocket(`${protocol}://${window.location.host}/ws`)
@@ -1542,15 +1619,24 @@ export function App() {
           setStatus('connecting')
         }
 
-        unlisten = editor.store.listen(
+        unlistenDocument = editor.store.listen(
           () => {
-            setSelectedPanelImage(selectedEditorImageSummary(editor))
-            queueReportState()
+            updateSelectedPanelImage()
+            queueReportState('document')
           },
-          { scope: 'all' } as any
+          { scope: 'document' } as any
         )
 
-        interval = window.setInterval(() => reportState(false), 2000)
+        unlistenSession = editor.store.listen(
+          () => {
+            const nextSelectedShapeKey = editor.getSelectedShapeIds().map(String).join('|')
+            if (nextSelectedShapeKey === lastSelectedShapeKey) return
+            lastSelectedShapeKey = nextSelectedShapeKey
+            updateSelectedPanelImage()
+            queueReportState('selection')
+          },
+          { scope: 'session' } as any
+        )
       })().catch((error) => {
         setStatus('error')
         setLastError(error instanceof Error ? error.message : String(error))
@@ -1558,9 +1644,13 @@ export function App() {
 
       return () => {
         disposed = true
-        if (interval) window.clearInterval(interval)
+        if (reportTimerRef.current) window.clearTimeout(reportTimerRef.current)
+        if (reportMaxWaitTimerRef.current) window.clearTimeout(reportMaxWaitTimerRef.current)
+        reportTimerRef.current = null
+        reportMaxWaitTimerRef.current = null
         if (saveAckTimerRef.current) window.clearTimeout(saveAckTimerRef.current)
-        unlisten?.()
+        unlistenDocument?.()
+        unlistenSession?.()
         socketRef.current?.close()
       }
     },
@@ -1682,17 +1772,27 @@ export function App() {
   }, [])
 
   const refreshSkillRecommendations = useCallback(async (userRequest?: string) => {
+    skillRecommendationAbortRef.current?.abort()
+    const controller = new AbortController()
+    skillRecommendationAbortRef.current = controller
     try {
       const result = await postJson<{ recommendations: SkillRecommendation[] }>(
         '/api/canvas/skills/recommend',
         {
           userRequest,
           maxResults: 5
-        }
+        },
+        { signal: controller.signal }
       )
+      if (controller.signal.aborted) return
       setSkillRecommendations(result.recommendations)
-    } catch {
+    } catch (error) {
+      if ((error as Error)?.name === 'AbortError') return
       setSkillRecommendations([])
+    } finally {
+      if (skillRecommendationAbortRef.current === controller) {
+        skillRecommendationAbortRef.current = null
+      }
     }
   }, [])
 
@@ -1701,7 +1801,28 @@ export function App() {
   }, [refreshSkills])
 
   useEffect(() => {
-    if (isSkillPanelOpen) void refreshSkillRecommendations(skillRequest)
+    if (!isSkillPanelOpen) {
+      if (skillRecommendationTimerRef.current) {
+        window.clearTimeout(skillRecommendationTimerRef.current)
+        skillRecommendationTimerRef.current = null
+      }
+      skillRecommendationAbortRef.current?.abort()
+      skillRecommendationAbortRef.current = null
+      return
+    }
+    if (skillRecommendationTimerRef.current) window.clearTimeout(skillRecommendationTimerRef.current)
+    skillRecommendationTimerRef.current = window.setTimeout(() => {
+      skillRecommendationTimerRef.current = null
+      void refreshSkillRecommendations(skillRequest)
+    }, 350)
+    return () => {
+      if (skillRecommendationTimerRef.current) {
+        window.clearTimeout(skillRecommendationTimerRef.current)
+        skillRecommendationTimerRef.current = null
+      }
+      skillRecommendationAbortRef.current?.abort()
+      skillRecommendationAbortRef.current = null
+    }
   }, [isSkillPanelOpen, refreshSkillRecommendations, selectedShapeKey, skillRequest])
 
   const openSkillPanel = async () => {
@@ -1710,7 +1831,6 @@ export function App() {
     setSkillInlineStatus('')
     if (nextOpen) {
       await refreshSkills()
-      await refreshSkillRecommendations(skillRequest)
     }
   }
 
