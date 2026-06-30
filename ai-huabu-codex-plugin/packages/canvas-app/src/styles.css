@@ -1741,6 +1741,19 @@ summary:focus-visible {
   font-weight: 700;
 }
 
+.sidebar-left h2 small {
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  color: #8a95a6;
+  background: #edf1f5;
+  font-size: 9px;
+}
+
+.sidebar-left .row {
+  min-height: 38px;
+}
+
 .topbar-button,
 .topbar-panel-button,
 .action,
@@ -1768,7 +1781,43 @@ summary:focus-visible {
 }
 
 .row-active {
+  border-color: transparent;
+  color: #344054;
+  background: rgba(37, 199, 195, 0.1);
   box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.row-active > svg {
+  color: var(--accent-text);
+}
+
+.sidebar-left .row:focus-visible {
+  border-color: transparent !important;
+  outline-color: rgba(37, 199, 195, 0.38);
+  outline-offset: 1px;
+}
+
+.sidebar-empty-state {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  border-radius: 8px;
+  padding: 6px 9px;
+  color: #7a8699;
+  background: rgba(238, 242, 245, 0.72);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.sidebar-empty-state svg {
+  flex: 0 0 auto;
+  color: #98a2b3;
+}
+
+.sidebar-empty-state-compact {
+  min-height: 28px;
+  background: transparent;
 }
 
 .listener-card {
@@ -2037,6 +2086,34 @@ summary:focus-visible {
 
 .tlui-button:hover {
   transform: translateY(-1px);
+}
+
+/* Keep submenu selection as one continuous row instead of a right-side gradient strip. */
+.tlui-menu .tlui-button__menu {
+  height: 36px;
+  min-height: 36px;
+  margin: -2px 0;
+}
+
+.tlui-menu .tlui-button:hover {
+  transform: none;
+}
+
+.tlui-menu__submenu__trigger[data-state='open'] {
+  color: var(--accent-text) !important;
+}
+
+.tlui-menu__submenu__trigger[data-state='open']::after,
+.tlui-menu__submenu__trigger[data-state='open']:not(:hover)::after {
+  inset: 4px !important;
+  opacity: 1 !important;
+  background: rgba(37, 199, 195, 0.1) !important;
+}
+
+.tlui-menu__submenu__trigger > .tlui-icon:last-child {
+  margin-right: 4px;
+  margin-left: auto;
+  color: currentColor;
 }
 
 .sidebar-right-content > section {

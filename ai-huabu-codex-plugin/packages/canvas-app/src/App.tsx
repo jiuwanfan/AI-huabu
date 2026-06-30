@@ -2328,7 +2328,10 @@ export function App() {
         <section>
           <h2><span>图片</span><small>{aiImages.length}</small></h2>
           {aiImages.length === 0 ? (
-            <p className="empty">还没有生成图片。</p>
+            <div className="sidebar-empty-state">
+              <ImageIcon size={14} />
+              <span>暂无图片</span>
+            </div>
           ) : (
             aiImages.map((image) => (
               <button className="row" key={image.id}>
@@ -2340,11 +2343,17 @@ export function App() {
         </section>
         <section>
           <h2><span>版本</span><small>{aiImages.length}</small></h2>
-          <div className="version-chain">
-            {aiImages.map((image, index) => (
-              <span key={image.id}>{index > 0 ? ` -> v${image.version ?? index + 1}` : `v${image.version ?? 1}`}</span>
-            ))}
-          </div>
+          {aiImages.length === 0 ? (
+            <div className="sidebar-empty-state sidebar-empty-state-compact">
+              <span>暂无版本</span>
+            </div>
+          ) : (
+            <div className="version-chain">
+              {aiImages.map((image, index) => (
+                <span key={image.id}>{index > 0 ? ` -> v${image.version ?? index + 1}` : `v${image.version ?? 1}`}</span>
+              ))}
+            </div>
+          )}
         </section>
         </div>
         <button
