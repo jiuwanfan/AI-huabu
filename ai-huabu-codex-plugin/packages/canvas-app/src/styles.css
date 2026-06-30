@@ -2126,20 +2126,44 @@ summary:focus-visible {
 }
 
 .tlui-menu__submenu__trigger[data-state='open'] {
-  color: var(--accent-text) !important;
+  color: #344054 !important;
+  background: rgba(37, 199, 195, 0.075) !important;
 }
 
 .tlui-menu__submenu__trigger[data-state='open']::after,
 .tlui-menu__submenu__trigger[data-state='open']:not(:hover)::after {
-  inset: 4px !important;
-  opacity: 1 !important;
-  background: rgba(37, 199, 195, 0.1) !important;
+  display: none !important;
 }
 
 .tlui-menu__submenu__trigger > .tlui-icon:last-child {
   margin-right: 4px;
   margin-left: auto;
-  color: currentColor;
+  color: var(--accent-text);
+}
+
+/* Keep nested canvas menus compact and flush without overlapping. */
+.tlui-menu {
+  border-radius: 4px !important;
+  backdrop-filter: none;
+}
+
+.tlui-menu .tlui-button__menu,
+.tlui-menu .tlui-button__menu::after {
+  border-radius: 0 !important;
+}
+
+.tlui-menu .tlui-button__menu:focus,
+.tlui-menu .tlui-button__menu:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
+}
+
+.tlui-menu__submenu__content[data-side='right'] {
+  margin-left: 7px !important;
+}
+
+.tlui-menu__submenu__content[data-side='left'] {
+  margin-right: 7px !important;
 }
 
 .sidebar-right-content > section {
