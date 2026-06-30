@@ -98,6 +98,14 @@ summary:focus-visible {
   grid-template-columns: 56px minmax(0, 1fr) 312px;
 }
 
+.app-shell-right-collapsed {
+  grid-template-columns: 196px minmax(0, 1fr) 56px;
+}
+
+.app-shell-left-collapsed.app-shell-right-collapsed {
+  grid-template-columns: 56px minmax(0, 1fr) 56px;
+}
+
 .topbar {
   grid-column: 1 / -1;
   display: flex;
@@ -368,7 +376,52 @@ summary:focus-visible {
 .sidebar-right {
   grid-column: 3;
   grid-row: 2;
+  position: relative;
+  display: flex;
+  flex-direction: column;
   border-left: 1px solid #d9dee7;
+  overflow: hidden;
+  padding-bottom: 58px;
+  z-index: 30;
+}
+
+.sidebar-right-content {
+  min-height: 0;
+  overflow: auto;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 120ms ease 60ms,
+    visibility 0s;
+}
+
+.sidebar-right-collapsed {
+  padding: 10px 8px 58px;
+}
+
+.sidebar-right-collapsed .sidebar-right-content {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 80ms ease,
+    visibility 0s linear 80ms;
+}
+
+.sidebar-right-collapse-button {
+  left: 50%;
+}
+
+.sidebar-right-collapsed .sidebar-right-collapse-button {
+  width: 28px;
+}
+
+.sidebar-right-collapse-button:hover .sidebar-collapse-icon {
+  transform: translateX(2px);
+}
+
+.sidebar-right-collapsed .sidebar-right-collapse-button:hover .sidebar-collapse-icon {
+  transform: translateX(-2px);
 }
 
 .sidebar-mobile-header,
@@ -1686,6 +1739,23 @@ summary:focus-visible {
     transition: transform 180ms ease;
   }
 
+  .sidebar-right,
+  .sidebar-right.sidebar-right-collapsed {
+    display: block;
+    overflow: auto;
+    padding: 14px;
+  }
+
+  .sidebar-right-collapsed .sidebar-right-content {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .sidebar-right-collapse-button {
+    display: none;
+  }
+
   .right-sidebar-open .sidebar-right {
     transform: translateX(0);
   }
@@ -1694,7 +1764,7 @@ summary:focus-visible {
     display: flex;
   }
 
-  .sidebar-right > section:first-of-type > h2 {
+  .sidebar-right-content > section:first-of-type > h2 {
     display: none;
   }
 

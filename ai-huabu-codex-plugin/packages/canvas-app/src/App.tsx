@@ -72,6 +72,16 @@ type Status = 'connecting' | 'connected' | 'saving' | 'saved' | 'error'
 
 type ImportSource = 'upload' | 'drag_drop' | 'paste'
 
+const RIGHT_SIDEBAR_COLLAPSED_KEY = 'ai-huabu:right-sidebar-collapsed'
+
+function readRightSidebarCollapsed() {
+  try {
+    return window.localStorage.getItem(RIGHT_SIDEBAR_COLLAPSED_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
 type SkillRecommendation = {
   skillId: string
   name: string
@@ -638,6 +648,7 @@ export function App() {
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false)
   const [isLeftSidebarMobileOpen, setIsLeftSidebarMobileOpen] = useState(false)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false)
+  const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(readRightSidebarCollapsed)
   const [isAspectLocked, setIsAspectLocked] = useState(true)
   const [activeFloatingTool, setActiveFloatingTool] = useState<FloatingToolId>('select')
   const [selectedPanelImage, setSelectedPanelImage] = useState<ShapeSummary | undefined>(undefined)
@@ -664,6 +675,15 @@ export function App() {
       }
     : undefined
   const selectedImageRatio = selectedImageSize ? selectedImageSize.w / selectedImageSize.h : undefined
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(RIGHT_SIDEBAR_COLLAPSED_KEY, String(isRightSidebarCollapsed))
+    } catch {
+      // The layout still works when browser storage is unavailable.
+    }
+  }, [isRightSidebarCollapsed])
+
   const tldrawComponents = useMemo(
     () => ({
       StylePanel: (props: any) => (
@@ -2190,6 +2210,7 @@ export function App() {
       className={[
         'app-shell',
         isLeftSidebarCollapsed ? 'app-shell-left-collapsed' : '',
+        isRightSidebarCollapsed ? 'app-shell-right-collapsed' : '',
         isLeftSidebarMobileOpen ? 'left-sidebar-mobile-open' : '',
         isRightSidebarOpen ? 'right-sidebar-open' : ''
       ]
@@ -2472,13 +2493,14 @@ export function App() {
         </div>
       </main>
 
-      <aside className="sidebar sidebar-right">
+      <aside className={isRightSidebarCollapsed ? 'sidebar sidebar-right sidebar-right-collapsed' : 'sidebar sidebar-right'}>
         <div className="sidebar-mobile-header">
           <strong>AI 操作</strong>
           <button aria-label="关闭 AI 操作侧栏" type="button" onClick={() => setIsRightSidebarOpen(false)}>
             <ChevronRight size={18} />
           </button>
         </div>
+        <div className="sidebar-right-content">
         <section>
           <h2>AI 操作</h2>
           <div className={`listener-card listener-card--${listenerView.kind}`}>
@@ -3302,6 +3324,30 @@ export function App() {
           <p className="path-text">{state?.storagePath ?? 'Opening canvas storage...'}</p>
           {lastError ? <p className="error-text">{lastError}</p> : null}
         </section>
+        </div>
+        <button
+          className="sidebar-collapse-button sidebar-right-collapse-button"
+          aria-label={isRightSidebarCollapsed ? '展开 AI 操作侧栏' : '收起 AI 操作侧栏'}
+          title={isRightSidebarCollapsed ? '展开 AI 操作' : '收起 AI 操作'}
+          type="button"
+          onClick={() =>
+            setIsRightSidebarCollapsed((value) => {
+              const nextValue = !value
+              try {
+                window.localStorage.setItem(RIGHT_SIDEBAR_COLLAPSED_KEY, String(nextValue))
+              } catch {
+                // The layout still works when browser storage is unavailable.
+              }
+              return nextValue
+            })
+          }
+        >
+          {isRightSidebarCollapsed ? (
+            <ChevronLeft className="sidebar-collapse-icon" size={17} />
+          ) : (
+            <ChevronRight className="sidebar-collapse-icon" size={17} />
+          )}
+        </button>
       </aside>
 
       {isLeftSidebarMobileOpen || isRightSidebarOpen ? (
