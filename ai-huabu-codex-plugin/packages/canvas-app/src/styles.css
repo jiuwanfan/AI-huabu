@@ -55,21 +55,6 @@ button:disabled {
     transform 140ms ease;
 }
 
-.topbar-button:not(:disabled):hover,
-.topbar-panel-button:not(:disabled):hover,
-.action:not(:disabled):hover,
-.primary-action:not(:disabled):hover,
-.row:not(:disabled):hover,
-.panel-icon-button:not(:disabled):hover,
-.image-size-panel-toggle:not(:disabled):hover,
-.ratio-button:not(:disabled):hover,
-.floating-tool-button:not(:disabled):hover,
-.skill-tab:not(:disabled):hover,
-.skill-row:not(:disabled):hover,
-.save-retry-button:not(:disabled):hover {
-  transform: translateY(-1px);
-}
-
 .topbar-button:not(:disabled):active,
 .topbar-panel-button:not(:disabled):active,
 .action:not(:disabled):active,
@@ -847,6 +832,19 @@ summary:focus-visible {
 .floating-tool-active {
   color: #ffffff !important;
   background: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(37, 199, 195, 0.18);
+}
+
+.floating-tool-button svg {
+  transition: transform 140ms ease;
+}
+
+.floating-tool-button:not(:disabled):hover svg {
+  transform: scale(1.08);
+}
+
+.floating-tool-active svg {
+  transform: scale(1.06);
 }
 
 .primary-action,
@@ -867,6 +865,109 @@ summary:focus-visible {
   border-color: var(--accent);
   background: var(--accent);
   color: #ffffff;
+}
+
+.action:not(:disabled):hover {
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+
+.primary-action:not(:disabled):hover {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  box-shadow: 0 0 0 3px rgba(37, 199, 195, 0.16);
+}
+
+.topbar-button:not(:disabled):hover,
+.topbar-panel-button:not(:disabled):hover {
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+
+.action > svg,
+.primary-action > svg,
+.topbar-button > svg,
+.topbar-panel-button > svg,
+.save-retry-button > svg {
+  flex: 0 0 auto;
+  transition: transform 150ms ease, opacity 150ms ease;
+}
+
+.action:not(.skill-panel-trigger):not(:disabled):hover > .button-leading-icon,
+.primary-action:not(:disabled):hover > .button-leading-icon,
+.topbar-button:not(:disabled):hover > svg,
+.topbar-panel-button:not(:disabled):hover > svg {
+  transform: translateX(2px);
+}
+
+.stateful-action {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.stateful-action[aria-busy='true']:disabled {
+  cursor: progress;
+  opacity: 1;
+}
+
+.stateful-action[aria-busy='true']::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, currentColor, transparent);
+  content: '';
+  opacity: 0.72;
+  transform: translateX(-100%);
+  animation: button-progress-sweep 1.1s ease-in-out infinite;
+}
+
+.button-loading-icon {
+  animation: save-status-spin 850ms linear infinite;
+}
+
+.button-state-label {
+  animation: button-label-enter 150ms ease-out;
+}
+
+.save-retry-button:not(:disabled):hover > svg {
+  transform: rotate(-28deg);
+}
+
+.skill-panel-trigger-icon {
+  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1) !important;
+}
+
+.skill-panel-trigger-open {
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+
+.skill-panel-trigger-open .skill-panel-trigger-icon {
+  transform: rotate(90deg);
+}
+
+@keyframes button-progress-sweep {
+  50%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes button-label-enter {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .listener-card {
@@ -970,6 +1071,8 @@ summary:focus-visible {
 }
 
 .skill-tab {
+  position: relative;
+  overflow: hidden;
   min-width: 0;
   border: 1px solid #d5dbe5;
   border-radius: 6px;
@@ -981,11 +1084,35 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
+.skill-tab::after {
+  position: absolute;
+  right: 7px;
+  bottom: 0;
+  left: 7px;
+  height: 2px;
+  border-radius: 999px 999px 0 0;
+  background: var(--accent);
+  content: '';
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 160ms ease;
+}
+
+.skill-tab:not(:disabled):hover {
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+  background: #f3fbfa;
+}
+
 .skill-tab-active {
   border-color: var(--accent-border);
   color: var(--accent-text);
   background: var(--accent-soft);
   box-shadow: inset 0 0 0 1px rgba(37, 199, 195, 0.08);
+}
+
+.skill-tab-active::after {
+  transform: scaleX(1);
 }
 
 .skill-list {

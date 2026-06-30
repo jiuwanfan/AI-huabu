@@ -2280,17 +2280,36 @@ export function App() {
             <strong>{listenerView.title}</strong>
             <span>{listenerView.detail}</span>
           </div>
-          <button className="action" onClick={submitAnnotationEdit}>
-            <Wand2 size={16} />
-            {isSubmittingEdit ? '正在提交' : '按标注修图'}
+          <button
+            className="action stateful-action"
+            aria-busy={isSubmittingEdit}
+            disabled={isSubmittingEdit}
+            type="button"
+            onClick={submitAnnotationEdit}
+          >
+            {isSubmittingEdit ? (
+              <LoaderCircle className="button-loading-icon" size={16} />
+            ) : (
+              <Wand2 className="button-leading-icon" size={16} />
+            )}
+            <span className="button-state-label" key={isSubmittingEdit ? 'submitting-edit' : 'submit-edit'}>
+              {isSubmittingEdit ? '正在提交' : '按标注修图'}
+            </span>
           </button>
           <p className="operation-message">{importStatus}</p>
         </section>
         <section>
           <h2>技能</h2>
-          <button className="action" aria-expanded={isSkillPanelOpen} onClick={openSkillPanel}>
-            <PanelRightOpen size={16} />
-            {isSkillPanelOpen ? '收起 Skill 面板' : '打开 Skill 面板'}
+          <button
+            className={isSkillPanelOpen ? 'action skill-panel-trigger skill-panel-trigger-open' : 'action skill-panel-trigger'}
+            aria-expanded={isSkillPanelOpen}
+            type="button"
+            onClick={openSkillPanel}
+          >
+            <PanelRightOpen className="skill-panel-trigger-icon" size={16} />
+            <span className="button-state-label" key={isSkillPanelOpen ? 'collapse-skills' : 'expand-skills'}>
+              {isSkillPanelOpen ? '收起 Skill 面板' : '打开 Skill 面板'}
+            </span>
           </button>
           {isSkillPanelOpen ? (
             <div className="skill-panel">
@@ -2336,6 +2355,7 @@ export function App() {
                         aria-pressed={selectedSkillId === skill.id}
                         disabled={disabled}
                         key={skill.id}
+                        title={disabledReason}
                         onClick={() => {
                           const shouldClear = selectedSkillId === skill.id
                           setSelectedSkillId(shouldClear ? null : skill.id)
@@ -3009,12 +3029,21 @@ export function App() {
                     }
                   />
                   <button
-                    className="primary-action"
+                    className="primary-action stateful-action"
+                    aria-busy={isRunningSkill}
                     onClick={runSelectedSkill}
                     disabled={isRunningSkill || Boolean(selectedSkillDisabledReason)}
+                    title={selectedSkillDisabledReason}
+                    type="button"
                   >
-                    <Wand2 size={16} />
-                    {isRunningSkill ? '正在提交...' : '提交给 Codex 生成'}
+                    {isRunningSkill ? (
+                      <LoaderCircle className="button-loading-icon" size={16} />
+                    ) : (
+                      <Wand2 className="button-leading-icon" size={16} />
+                    )}
+                    <span className="button-state-label" key={isRunningSkill ? 'running-skill' : 'run-skill'}>
+                      {isRunningSkill ? '正在提交...' : '提交给 Codex 生成'}
+                    </span>
                   </button>
                   {(skillInlineStatus || selectedSkillDisabledReason) && (
                     <pre className="skill-inline-status">
