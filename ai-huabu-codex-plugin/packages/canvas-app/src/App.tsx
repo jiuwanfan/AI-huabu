@@ -29,6 +29,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Copy,
   Image as ImageIcon,
   Layers3,
   Lock,
@@ -649,6 +650,7 @@ export function App() {
   const [isLeftSidebarMobileOpen, setIsLeftSidebarMobileOpen] = useState(false)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false)
   const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(readRightSidebarCollapsed)
+  const [isPathCopied, setIsPathCopied] = useState(false)
   const [isAspectLocked, setIsAspectLocked] = useState(true)
   const [activeFloatingTool, setActiveFloatingTool] = useState<FloatingToolId>('select')
   const [selectedPanelImage, setSelectedPanelImage] = useState<ShapeSummary | undefined>(undefined)
@@ -2205,6 +2207,18 @@ export function App() {
     }
   }
 
+  const copyStoragePath = async () => {
+    const storagePath = state?.storagePath
+    if (!storagePath) return
+    try {
+      await navigator.clipboard.writeText(storagePath)
+      setIsPathCopied(true)
+      window.setTimeout(() => setIsPathCopied(false), 1600)
+    } catch {
+      setLastError('无法复制保存路径，请手动选择路径文本。')
+    }
+  }
+
   return (
     <div
       className={[
@@ -2305,14 +2319,14 @@ export function App() {
         </div>
         <div className="sidebar-left-content">
         <section>
-          <h2>Pages</h2>
-          <button className="row row-active">
+          <h2>页面</h2>
+          <button className="row row-active" title="主画布">
             <Layers3 size={16} />
-            主画布
+            <span className="row-label">主画布</span>
           </button>
         </section>
         <section>
-          <h2>图片</h2>
+          <h2><span>图片</span><small>{aiImages.length}</small></h2>
           {aiImages.length === 0 ? (
             <p className="empty">还没有生成图片。</p>
           ) : (
@@ -2325,7 +2339,7 @@ export function App() {
           )}
         </section>
         <section>
-          <h2>版本</h2>
+          <h2><span>版本</span><small>{aiImages.length}</small></h2>
           <div className="version-chain">
             {aiImages.map((image, index) => (
               <span key={image.id}>{index > 0 ? ` -> v${image.version ?? index + 1}` : `v${image.version ?? 1}`}</span>
@@ -2500,15 +2514,35 @@ export function App() {
             <ChevronRight size={18} />
           </button>
         </div>
+        <div className="sidebar-right-rail" aria-hidden="true">
+          <div className="sidebar-rail-brand">
+            <Sparkles size={18} />
+            <span>AI</span>
+          </div>
+          <div className="sidebar-rail-icons">
+            <span title="标注修图"><Wand2 size={17} /></span>
+            <span title="Skill 面板"><PanelRightOpen size={17} /></span>
+            <span title="任务记录"><CheckCircle2 size={17} /></span>
+          </div>
+        </div>
         <div className="sidebar-right-content">
         <section>
           <h2>AI 操作</h2>
           <div className={`listener-card listener-card--${listenerView.kind}`}>
-            <strong>{listenerView.title}</strong>
+            <div className="listener-card-heading">
+              {listenerView.kind === 'active' ? (
+                <CheckCircle2 size={15} />
+              ) : listenerView.kind === 'busy' ? (
+                <LoaderCircle className="listener-card-spinner" size={15} />
+              ) : (
+                <AlertCircle size={15} />
+              )}
+              <strong>{listenerView.title}</strong>
+            </div>
             <span>{listenerView.detail}</span>
           </div>
           <button
-            className="action stateful-action"
+            className="primary-action stateful-action"
             aria-busy={isSubmittingEdit}
             disabled={isSubmittingEdit}
             type="button"
@@ -2561,7 +2595,11 @@ export function App() {
               </div>
               <div className="skill-list">
                 {visibleSkills.length === 0 ? (
-                  <p className="empty">这个分类还没有 Skill。</p>
+                  <div className="skill-empty-state">
+                    <Sparkles size={18} />
+                    <strong>该分类暂无 Skill</strong>
+                    <span>可以切换其他分类，或先选中一张画布图片。</span>
+                  </div>
                 ) : (
                   visibleSkills.map((skill) => {
                     const recommendation = skillRecommendations.find((item) => item.skillId === skill.id)
@@ -3285,7 +3323,10 @@ export function App() {
         <section>
           <h2>选中内容</h2>
           {selected.length === 0 ? (
-            <p className="empty">当前没有选中内容。</p>
+            <div className="selection-empty-state">
+              <MousePointer2 size={17} />
+              <span>在画布中选择图片后，这里会显示尺寸与版本信息。</span>
+            </div>
           ) : (
             selected.map((shape) => (
               <div className="metadata-card" key={shape.id}>
@@ -3321,7 +3362,20 @@ export function App() {
         </section>
         <section>
           <h2>保存位置</h2>
-          <p className="path-text">{state?.storagePath ?? 'Opening canvas storage...'}</p>
+          <div className="path-card">
+            <code className="path-text" title={state?.storagePath}>
+              {state?.storagePath ?? '正在打开画布存储…'}
+            </code>
+            <button
+              className="path-copy-button"
+              type="button"
+              disabled={!state?.storagePath}
+              onClick={() => void copyStoragePath()}
+            >
+              {isPathCopied ? <CheckCircle2 size={13} /> : <Copy size={13} />}
+              <span>{isPathCopied ? '已复制' : '复制'}</span>
+            </button>
+          </div>
           {lastError ? <p className="error-text">{lastError}</p> : null}
         </section>
         </div>
@@ -3363,16 +3417,16 @@ export function App() {
       ) : null}
 
       <footer className="statusbar">
-        <span>{holders.length} holders</span>
-        <span>{aiImages.length} AI images</span>
-        <span>{state?.shapes.length ?? 0} shapes</span>
+        <span className="statusbar-metric"><strong>{holders.length}</strong> 图片框</span>
+        <span className="statusbar-metric"><strong>{aiImages.length}</strong> AI 图片</span>
+        <span className="statusbar-metric"><strong>{state?.shapes.length ?? 0}</strong> 个对象</span>
         <span className="statusbar-command">
           <Braces size={14} />
           MCP 已就绪
         </span>
         <span>
           <ArrowRight size={14} />
-          新版会放到右侧
+          新版本将放置在右侧
         </span>
       </footer>
     </div>
