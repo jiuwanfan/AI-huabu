@@ -1797,6 +1797,32 @@ summary:focus-visible {
   outline-offset: 1px;
 }
 
+.sidebar-left .row-active {
+  position: relative;
+  border: 0;
+  border-radius: 0;
+  padding-left: 12px;
+  color: var(--accent-text);
+  background: transparent;
+  box-shadow: none;
+}
+
+.sidebar-left .row-active::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 2px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--accent);
+  content: '';
+  transform: translateY(-50%);
+}
+
+.sidebar-left .row-active:hover {
+  background: rgba(37, 199, 195, 0.045);
+}
+
 .sidebar-empty-state {
   display: flex;
   min-height: 34px;
