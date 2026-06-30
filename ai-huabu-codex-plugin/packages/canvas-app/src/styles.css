@@ -12,9 +12,10 @@
   --border-soft: #e8edf2;
   --text: #1d2430;
   --text-muted: #667085;
-  --radius-control: 8px;
-  --radius-card: 10px;
-  --radius-floating: 12px;
+  --radius-ui: 8px;
+  --radius-control: var(--radius-ui);
+  --radius-card: var(--radius-ui);
+  --radius-floating: var(--radius-ui);
   --floating-shadow: 0 2px 8px rgba(16, 24, 40, 0.12), 0 1px 2px rgba(16, 24, 40, 0.08);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -165,7 +166,7 @@ summary:focus-visible {
 
 .save-status {
   border: 1px solid #cfd7e3;
-  border-radius: 6px;
+  border-radius: var(--radius-ui);
   padding: 5px 9px;
   color: #455468;
   font-size: 12px;
@@ -214,7 +215,7 @@ summary:focus-visible {
   align-items: center;
   gap: 4px;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-ui);
   padding: 0 6px;
   color: #b42318;
   background: #ffffff;
@@ -265,7 +266,7 @@ summary:focus-visible {
 .primary-action,
 .row {
   border: 1px solid #d5dbe5;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   color: #1d2430;
   background: #ffffff;
   cursor: pointer;
@@ -284,7 +285,7 @@ summary:focus-visible {
   flex: 0 0 32px;
   place-items: center;
   border: 1px solid #d5dbe5;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   color: #344054;
   background: #ffffff;
   cursor: pointer;
@@ -344,7 +345,7 @@ summary:focus-visible {
   place-items: center;
   transform: translateX(-50%);
   border: 1px solid #dfe4ec;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   color: #455468;
   background: rgba(255, 255, 255, 0.76);
   cursor: pointer;
@@ -458,7 +459,7 @@ summary:focus-visible {
   height: 30px;
   place-items: center;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-ui);
   color: #455468;
   background: transparent;
   cursor: pointer;
@@ -501,7 +502,7 @@ summary:focus-visible {
   height: 22px;
   flex: 0 0 32px;
   place-items: center;
-  border-radius: 2px;
+  border-radius: var(--radius-ui);
   color: #ffffff;
   background: var(--accent);
 }
@@ -555,7 +556,7 @@ summary:focus-visible {
 .canvas-empty-card {
   width: min(430px, 100%);
   border: 1px solid rgba(37, 199, 195, 0.34);
-  border-radius: 14px;
+  border-radius: var(--radius-ui);
   padding: 22px;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 10px 30px rgba(16, 24, 40, 0.1);
@@ -567,7 +568,7 @@ summary:focus-visible {
   width: 38px;
   height: 38px;
   place-items: center;
-  border-radius: 10px;
+  border-radius: var(--radius-ui);
   color: var(--accent-text);
   background: var(--accent-soft);
 }
@@ -642,7 +643,7 @@ summary:focus-visible {
   right: 16px;
   width: 222px;
   border: 1px solid #d5dbe5;
-  border-radius: 8px;
+  border-radius: var(--radius-ui);
   padding: 10px;
   background: rgba(255, 255, 255, 0.97);
   box-shadow: var(--floating-shadow);
@@ -660,7 +661,7 @@ summary:focus-visible {
   align-items: center;
   justify-content: space-between;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-ui);
   padding: 0 7px;
   color: #1d2430;
   background: transparent;
@@ -699,7 +700,7 @@ summary:focus-visible {
   height: 34px;
   min-width: 0;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   padding: 0 9px;
   color: #1d2430;
   background: #f2f4f7;
@@ -713,7 +714,7 @@ summary:focus-visible {
   height: 34px;
   place-items: center;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   color: #455468;
   background: transparent;
   cursor: pointer;
@@ -743,7 +744,7 @@ summary:focus-visible {
   min-height: 66px;
   place-items: center;
   border: 1px solid #e1e5ec;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   padding: 7px 5px;
   color: #1d2430;
   background: #ffffff;
@@ -762,7 +763,7 @@ summary:focus-visible {
   width: var(--ratio-w);
   height: var(--ratio-h);
   border: 2px solid currentColor;
-  border-radius: 4px;
+  border-radius: var(--radius-ui);
 }
 
 .ratio-button strong {
@@ -793,7 +794,7 @@ summary:focus-visible {
   height: 42px;
   place-items: center;
   border: 1px solid #d5dbe5;
-  border-radius: 8px;
+  border-radius: var(--radius-ui);
   background: rgba(255, 255, 255, 0.97);
   box-shadow: var(--floating-shadow);
 }
@@ -839,7 +840,7 @@ summary:focus-visible {
   height: 34px;
   place-items: center;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   color: #344054;
   background: transparent;
   cursor: pointer;
@@ -866,7 +867,7 @@ summary:focus-visible {
   gap: 6px;
   padding: 6px;
   border: 1px solid #d5dbe5;
-  border-radius: 8px;
+  border-radius: var(--radius-ui);
   background: rgba(255, 255, 255, 0.95);
   box-shadow: var(--floating-shadow);
 }
@@ -877,7 +878,7 @@ summary:focus-visible {
   height: 34px;
   place-items: center;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-ui);
   color: #344054;
   background: transparent;
   cursor: pointer;
@@ -1040,7 +1041,7 @@ summary:focus-visible {
   justify-content: center;
   gap: 4px;
   border: 1px solid #d5dbe5;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   margin-bottom: 10px;
   padding: 9px 10px;
   background: #ffffff;
@@ -1108,7 +1109,7 @@ summary:focus-visible {
 
 .skill-panel {
   border: 1px solid #d5dbe5;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   padding: 8px;
   background: #ffffff;
   transform-origin: top center;
@@ -1138,7 +1139,7 @@ summary:focus-visible {
   overflow: hidden;
   min-width: 0;
   border: 1px solid #d5dbe5;
-  border-radius: 6px;
+  border-radius: var(--radius-ui);
   padding: 5px 8px;
   color: #455468;
   background: #ffffff;
@@ -1191,7 +1192,7 @@ summary:focus-visible {
   justify-content: space-between;
   gap: 8px;
   border: 1px solid #d5dbe5;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   padding: 8px;
   text-align: left;
   color: #1d2430;
@@ -1268,7 +1269,7 @@ summary:focus-visible {
   display: grid;
   gap: 7px;
   border: 1px solid #d5dbe5;
-  border-radius: 8px;
+  border-radius: var(--radius-ui);
   padding: 10px;
   background: #ffffff;
   transition:
@@ -1501,7 +1502,7 @@ summary:focus-visible {
   width: 100%;
   min-width: 0;
   border: 1px solid #d5dbe5;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   padding: 7px 8px;
   color: #1d2430;
   background: #ffffff;
@@ -1521,7 +1522,7 @@ summary:focus-visible {
   align-items: center;
   gap: 6px;
   border: 1px solid #d5dbe5;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   padding: 6px 7px;
   color: #1d2430 !important;
   background: #ffffff;
@@ -1547,7 +1548,7 @@ summary:focus-visible {
   min-height: 72px;
   resize: vertical;
   border: 1px solid #d5dbe5;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   padding: 8px;
   color: #1d2430;
   font: inherit;
@@ -1559,7 +1560,7 @@ summary:focus-visible {
   overflow: auto;
   max-height: 112px;
   border: 1px solid var(--accent-border);
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   margin: 0;
   padding: 8px;
   color: var(--accent-text);
@@ -1604,7 +1605,7 @@ summary:focus-visible {
 .tlui-button__tool[aria-pressed='true']::after,
 .tlui-button__tool[data-isactive='true']::after {
   inset: 5px !important;
-  border-radius: 6px !important;
+  border-radius: var(--radius-ui) !important;
   background: var(--accent-soft) !important;
 }
 
@@ -1613,6 +1614,14 @@ summary:focus-visible {
   color: var(--accent-text) !important;
   position: relative;
   z-index: 1;
+}
+
+.tl-skip-to-main-content {
+  border-radius: var(--radius-ui) !important;
+}
+
+.tlui-menu-zone {
+  border-radius: 0 0 var(--radius-ui) 0 !important;
 }
 
 .tl-selection__fg,
@@ -1634,7 +1643,7 @@ summary:focus-visible {
 
 .metadata-card {
   border: 1px solid #d5dbe5;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   margin-bottom: 8px;
   padding: 9px;
   background: #ffffff;
@@ -1664,7 +1673,7 @@ summary:focus-visible {
   overflow: auto;
   max-height: 150px;
   border: 1px solid #d5dbe5;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   margin: 0;
   padding: 10px;
   color: #344054;
@@ -1828,7 +1837,7 @@ summary:focus-visible {
   min-height: 34px;
   align-items: center;
   gap: 7px;
-  border-radius: 8px;
+  border-radius: var(--radius-ui);
   padding: 6px 9px;
   color: #7a8699;
   background: rgba(238, 242, 245, 0.72);
@@ -1887,7 +1896,7 @@ summary:focus-visible {
 
 .skill-tabs {
   gap: 3px;
-  border-radius: 9px;
+  border-radius: var(--radius-ui);
   margin-bottom: 8px;
   padding: 4px;
   background: var(--surface-muted);
@@ -1895,7 +1904,7 @@ summary:focus-visible {
 
 .skill-tab {
   border-color: transparent;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   background: transparent;
 }
 
@@ -2021,7 +2030,7 @@ summary:focus-visible {
   align-items: center;
   gap: 4px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-ui);
   padding: 0 7px;
   color: #455468;
   background: var(--surface-muted);
@@ -2069,7 +2078,7 @@ summary:focus-visible {
   display: grid;
   place-items: center;
   box-sizing: content-box;
-  border-radius: 8px;
+  border-radius: var(--radius-ui);
   padding: 7px;
   background: rgba(255, 255, 255, 0.72);
   box-shadow: inset 0 0 0 1px var(--border-soft);
@@ -2143,7 +2152,7 @@ summary:focus-visible {
 
 /* Keep nested canvas menus compact and flush without overlapping. */
 .tlui-menu {
-  border-radius: 4px !important;
+  border-radius: var(--radius-ui) !important;
   backdrop-filter: none;
 }
 
@@ -2160,10 +2169,12 @@ summary:focus-visible {
 
 .tlui-menu__submenu__content[data-side='right'] {
   margin-left: 7px !important;
+  border-radius: 0 var(--radius-ui) var(--radius-ui) 0 !important;
 }
 
 .tlui-menu__submenu__content[data-side='left'] {
   margin-right: 7px !important;
+  border-radius: var(--radius-ui) 0 0 var(--radius-ui) !important;
 }
 
 .sidebar-right-content > section {
