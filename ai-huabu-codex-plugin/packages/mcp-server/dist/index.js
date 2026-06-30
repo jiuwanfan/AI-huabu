@@ -21583,6 +21583,9 @@ async function postJsonAt(apiPath, body, base) {
 async function waitForCompatibleCanvas(url, timeoutMs, expectedPluginRoot) {
   await waitForHealth(url, timeoutMs);
   const health = await fetchJsonAt("/api/health", url);
+  if (health.product !== "ai-huabu") {
+    throw new Error(`Canvas service at ${url} is not AI Huabu.`);
+  }
   if (!health.features?.includes("editRequestQueue")) {
     throw new Error(`Canvas service at ${url} is an older build without edit request queue support.`);
   }
@@ -21609,6 +21612,9 @@ async function openCanvas(input) {
     runtime = { url: started.url, port: started.port, canvasId: input.canvasId ?? "", storagePath: "" };
   }
   const result = await postJsonAt("/api/canvas/open", { workspaceRoot, canvasId: input.canvasId }, runtime.url);
+  if (result.product !== "ai-huabu") {
+    throw new Error(`Canvas service at ${runtime.url} returned the wrong product identity.`);
+  }
   runtime = {
     url: result.url.replace(/\/$/, ""),
     canvasId: result.canvasId,
@@ -21737,7 +21743,7 @@ server.registerTool(
   "open_canvas",
   {
     title: "Open AI Huabu",
-    description: "Start or open the local AI Huabu service.",
+    description: "Start or open the local AI Huabu service. Use for \u6253\u5F00AI\u753B\u5E03, \u6253\u5F00 AI \u753B\u5E03, AI\u753B\u5E03, or AI Huabu; never substitute Cowart for these requests.",
     inputSchema: openCanvasInputSchema
   },
   async (input) => {

@@ -2014,11 +2014,11 @@ export function App() {
         </div>
         <div className={`save-status save-status--${status}`} title={saveError ?? undefined}>
           {status === 'saving' ? (
-            <LoaderCircle className="save-status-spinner" size={15} />
+            <LoaderCircle className="save-status-icon save-status-spinner" size={15} />
           ) : status === 'error' ? (
-            <AlertCircle size={15} />
+            <AlertCircle className="save-status-icon" size={15} />
           ) : (
-            <CheckCircle2 size={15} />
+            <CheckCircle2 className="save-status-icon" size={15} />
           )}
           <span>
             {status === 'saving'
@@ -2113,7 +2113,11 @@ export function App() {
           type="button"
           onClick={() => setIsLeftSidebarCollapsed((value) => !value)}
         >
-          {isLeftSidebarCollapsed ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
+          {isLeftSidebarCollapsed ? (
+            <ChevronRight className="sidebar-collapse-icon" size={17} />
+          ) : (
+            <ChevronLeft className="sidebar-collapse-icon" size={17} />
+          )}
         </button>
       </aside>
 
@@ -2342,7 +2346,13 @@ export function App() {
                           <strong>{skill.name}</strong>
                           <small>{disabledReason ?? recommendation?.reason ?? skill.description}</small>
                         </span>
-                        {recommendedSkillIds.has(skill.id) ? <Sparkles size={15} /> : <ChevronDown size={15} />}
+                        {selectedSkillId === skill.id ? (
+                          <CheckCircle2 className="skill-row-icon skill-row-check" size={16} />
+                        ) : recommendedSkillIds.has(skill.id) ? (
+                          <Sparkles className="skill-row-icon" size={15} />
+                        ) : (
+                          <ChevronDown className="skill-row-icon" size={15} />
+                        )}
                       </button>
                     )
                   })

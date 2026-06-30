@@ -3393,6 +3393,7 @@ async function start() {
   app.get('/api/health', (_request, response) => {
     response.json({
       ok: true,
+      product: 'ai-huabu',
       appVersion: APP_VERSION,
       features: FEATURES,
       pluginRoot,
@@ -3407,6 +3408,7 @@ async function start() {
       const body = parseInput(openCanvasInputSchema, request.body ?? {})
       const nextSession = await openSession(body)
       response.json({
+        product: 'ai-huabu',
         url: `http://127.0.0.1:${port}/`,
         canvasId: nextSession.canvasId,
         storagePath: nextSession.storagePath

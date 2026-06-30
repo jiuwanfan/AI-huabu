@@ -1,6 +1,6 @@
 {
   "name": "ai-huabu-codex-plugin",
-  "version": "0.1.0+codex.20260629071930",
+  "version": "0.1.0+codex.20260630024929",
   "description": "Codex-integrated infinite canvas for image generation, visual annotation, and iterative editing.",
   "author": {
     "name": "AI Huabu contributors"
@@ -17,7 +17,7 @@
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "AI Huabu",
+    "displayName": "AI \u753b\u5e03 \u00b7 AI Huabu",
     "shortDescription": "Create and revise images from natural language on an infinite canvas.",
     "longDescription": "AI Huabu lets users ask Codex to open a canvas, generate images, read visual annotations, and place edited versions without dealing with MCP tools or file plumbing.",
     "developerName": "AI Huabu contributors",

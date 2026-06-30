@@ -33,6 +33,58 @@ button:disabled {
   opacity: 0.48;
 }
 
+.topbar-button,
+.topbar-panel-button,
+.action,
+.primary-action,
+.row,
+.sidebar-collapse-button,
+.panel-icon-button,
+.image-size-panel-toggle,
+.ratio-button,
+.floating-tool-button,
+.skill-tab,
+.skill-row,
+.save-retry-button {
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.topbar-button:not(:disabled):hover,
+.topbar-panel-button:not(:disabled):hover,
+.action:not(:disabled):hover,
+.primary-action:not(:disabled):hover,
+.row:not(:disabled):hover,
+.panel-icon-button:not(:disabled):hover,
+.image-size-panel-toggle:not(:disabled):hover,
+.ratio-button:not(:disabled):hover,
+.floating-tool-button:not(:disabled):hover,
+.skill-tab:not(:disabled):hover,
+.skill-row:not(:disabled):hover,
+.save-retry-button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.topbar-button:not(:disabled):active,
+.topbar-panel-button:not(:disabled):active,
+.action:not(:disabled):active,
+.primary-action:not(:disabled):active,
+.row:not(:disabled):active,
+.panel-icon-button:not(:disabled):active,
+.image-size-panel-toggle:not(:disabled):active,
+.ratio-button:not(:disabled):active,
+.floating-tool-button:not(:disabled):active,
+.skill-tab:not(:disabled):active,
+.skill-row:not(:disabled):active,
+.save-retry-button:not(:disabled):active {
+  transform: scale(0.98);
+}
+
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
@@ -54,6 +106,7 @@ summary:focus-visible {
   width: 100vw;
   height: 100vh;
   background: #eef1f4;
+  transition: grid-template-columns 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .app-shell-left-collapsed {
@@ -115,6 +168,11 @@ summary:focus-visible {
   font-size: 12px;
   background: #ffffff;
   white-space: nowrap;
+  transition:
+    color 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
 }
 
 .save-status--saved,
@@ -122,10 +180,19 @@ summary:focus-visible {
   color: #067647;
 }
 
+.save-status--saved {
+  animation: save-status-confirm 520ms ease-out;
+}
+
+.save-status--saved .save-status-icon {
+  animation: save-icon-confirm 260ms cubic-bezier(0.2, 0.9, 0.3, 1.35);
+}
+
 .save-status--error {
   color: #b42318;
   border-color: #fda29b;
   background: #fff6f5;
+  animation: save-status-error 1.8s ease-in-out infinite;
 }
 
 .save-status--saving {
@@ -156,6 +223,37 @@ summary:focus-visible {
 @keyframes save-status-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes save-status-confirm {
+  0% {
+    border-color: var(--accent-border);
+    box-shadow: 0 0 0 0 rgba(37, 199, 195, 0.24);
+  }
+  55% {
+    box-shadow: 0 0 0 4px rgba(37, 199, 195, 0);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+
+@keyframes save-icon-confirm {
+  from {
+    opacity: 0;
+    transform: scale(0.62);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes save-status-error {
+  50% {
+    border-color: #f97066;
+    box-shadow: 0 0 0 3px rgba(240, 68, 56, 0.07);
   }
 }
 
@@ -252,6 +350,18 @@ summary:focus-visible {
 
 .sidebar-left-collapsed .sidebar-collapse-button {
   width: 28px;
+}
+
+.sidebar-collapse-icon {
+  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.sidebar-collapse-button:hover .sidebar-collapse-icon {
+  transform: translateX(-2px);
+}
+
+.sidebar-left-collapsed .sidebar-collapse-button:hover .sidebar-collapse-icon {
+  transform: translateX(2px);
 }
 
 .sidebar-collapse-button:hover {
@@ -837,6 +947,19 @@ summary:focus-visible {
   border-radius: 7px;
   padding: 8px;
   background: #ffffff;
+  transform-origin: top center;
+  animation: skill-panel-enter 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes skill-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scaleY(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
 }
 
 .skill-tabs {
@@ -862,6 +985,7 @@ summary:focus-visible {
   border-color: var(--accent-border);
   color: var(--accent-text);
   background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(37, 199, 195, 0.08);
 }
 
 .skill-list {
@@ -883,6 +1007,11 @@ summary:focus-visible {
   color: #1d2430;
   background: #ffffff;
   cursor: pointer;
+}
+
+.skill-row:not(:disabled):hover {
+  border-color: #b9c3d1;
+  box-shadow: 0 4px 10px rgba(16, 24, 40, 0.06);
 }
 
 .skill-row span {
@@ -913,6 +1042,31 @@ summary:focus-visible {
   border-color: var(--accent-border);
   background: var(--accent-soft);
   color: var(--accent-text);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.skill-row-icon {
+  flex: 0 0 auto;
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.skill-row:hover .skill-row-icon {
+  transform: translateX(1px);
+}
+
+.skill-row-check {
+  animation: skill-check-in 220ms cubic-bezier(0.2, 0.9, 0.3, 1.35);
+}
+
+@keyframes skill-check-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6) rotate(-12deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
 }
 
 .task-list {
@@ -927,6 +1081,23 @@ summary:focus-visible {
   border-radius: 8px;
   padding: 10px;
   background: #ffffff;
+  transition:
+    border-color 220ms ease,
+    background-color 220ms ease,
+    box-shadow 220ms ease,
+    transform 220ms ease;
+  animation: task-card-enter 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes task-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .task-card-heading {
@@ -985,6 +1156,7 @@ summary:focus-visible {
 
 .task-card--queued .task-status i {
   background: #f79009;
+  animation: task-dot-pulse 1.25s ease-in-out infinite;
 }
 
 .task-card--processing {
@@ -999,6 +1171,7 @@ summary:focus-visible {
 
 .task-card--processing .task-status i {
   background: var(--accent);
+  animation: task-dot-pulse 1.1s ease-in-out infinite;
 }
 
 .task-card--completed {
@@ -1013,11 +1186,13 @@ summary:focus-visible {
 
 .task-card--completed .task-status i {
   background: #17b26a;
+  animation: task-complete-pop 260ms cubic-bezier(0.2, 0.9, 0.3, 1.35);
 }
 
 .task-card--failed {
   border-color: #fda29b;
   background: #fff6f5;
+  animation: task-failed-in 260ms ease-out;
 }
 
 .task-card--failed .task-status {
@@ -1054,12 +1229,53 @@ summary:focus-visible {
   }
 }
 
+@keyframes task-dot-pulse {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.72);
+  }
+}
+
+@keyframes task-complete-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes task-failed-in {
+  from {
+    border-color: rgba(240, 68, 56, 0.2);
+    box-shadow: 0 0 0 4px rgba(240, 68, 56, 0.08);
+  }
+  to {
+    border-color: #fda29b;
+    box-shadow: none;
+  }
+}
+
 .skill-confirm {
   display: grid;
   gap: 8px;
   border-top: 1px solid #e6eaf0;
   margin-top: 8px;
   padding-top: 8px;
+  animation: skill-confirm-enter 180ms ease-out;
+}
+
+@keyframes skill-confirm-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .skill-confirm strong {
@@ -1361,11 +1577,21 @@ summary:focus-visible {
     z-index: 500;
     border: 0;
     background: rgba(29, 36, 48, 0.2);
+    display: block;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
     cursor: default;
+    transition:
+      opacity 180ms ease,
+      visibility 0s linear 180ms;
   }
 
   .right-sidebar-open .sidebar-backdrop {
-    display: block;
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transition-delay: 0s;
   }
 
   .canvas-empty-card {
@@ -1454,7 +1680,10 @@ summary:focus-visible {
 
   .left-sidebar-mobile-open .sidebar-backdrop,
   .right-sidebar-open .sidebar-backdrop {
-    display: block;
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transition-delay: 0s;
   }
 
   .floating-toolbar {
@@ -1492,5 +1721,17 @@ summary:focus-visible {
 
   .canvas-empty-card h1 {
     font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
   }
 }
