@@ -24866,7 +24866,7 @@ var require_websocket = __commonJS({
     var http = __require("http");
     var net = __require("net");
     var tls = __require("tls");
-    var { randomBytes, createHash } = __require("crypto");
+    var { randomBytes, createHash: createHash2 } = __require("crypto");
     var { Duplex, Readable } = __require("stream");
     var { URL: URL2 } = __require("url");
     var PerMessageDeflate2 = require_permessage_deflate();
@@ -25534,7 +25534,7 @@ var require_websocket = __commonJS({
           abortHandshake(websocket, socket, "Invalid Upgrade header");
           return;
         }
-        const digest = createHash("sha1").update(key + GUID).digest("base64");
+        const digest = createHash2("sha1").update(key + GUID).digest("base64");
         if (res.headers["sec-websocket-accept"] !== digest) {
           abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
           return;
@@ -25903,7 +25903,7 @@ var require_websocket_server = __commonJS({
     var EventEmitter = __require("events");
     var http = __require("http");
     var { Duplex } = __require("stream");
-    var { createHash } = __require("crypto");
+    var { createHash: createHash2 } = __require("crypto");
     var extension2 = require_extension();
     var PerMessageDeflate2 = require_permessage_deflate();
     var subprotocol2 = require_subprotocol();
@@ -26210,7 +26210,7 @@ var require_websocket_server = __commonJS({
           );
         }
         if (this._state > RUNNING) return abortHandshake(socket, 503);
-        const digest = createHash("sha1").update(key + GUID).digest("base64");
+        const digest = createHash2("sha1").update(key + GUID).digest("base64");
         const headers = [
           "HTTP/1.1 101 Switching Protocols",
           "Upgrade: websocket",
@@ -30706,6 +30706,7 @@ var saveSnapshotInputSchema = external_exports.object({});
 
 // src/server.ts
 var import_express = __toESM(require_express2(), 1);
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { access, copyFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
@@ -30943,6 +30944,7 @@ async function openSession(input) {
     shapes: existingSummary?.shapes ?? [],
     pendingOperations
   };
+  await migrateSessionDataUrls();
   await writeJson(path.join(canvasHome, "config.json"), {
     version: APP_VERSION,
     defaultPort: DEFAULT_PORT,
@@ -31170,6 +31172,80 @@ function parseDataUrl(dataUrl) {
     mimeType: match[1],
     buffer: Buffer.from(match[2], "base64")
   };
+}
+async function materializeImageDataUrl(dataUrl) {
+  if (!session) throw new Error("Canvas session is not open");
+  const parsed = parseDataUrl(dataUrl);
+  const mimeType = assertSupportedImage(parsed.buffer, parsed.mimeType);
+  const dimensions = readImageDimensionsFromBuffer(parsed.buffer, mimeType);
+  const digest = createHash("sha256").update(parsed.buffer).digest("hex").slice(0, 24);
+  const targetName = `embedded_${digest}${extensionForMime(mimeType)}`;
+  const targetPath = path.join(session.storagePath, "assets/images", targetName);
+  ensureInside(session.storagePath, targetPath);
+  if (!existsSync(targetPath)) await writeFile(targetPath, parsed.buffer);
+  return {
+    assetPath: `assets/images/${targetName}`,
+    assetUrl: `/api/canvas/asset-file/images/${encodeURIComponent(targetName)}`,
+    width: dimensions.width,
+    height: dimensions.height,
+    mimeType
+  };
+}
+async function migrateDataUrlsInValue(value) {
+  const cache = /* @__PURE__ */ new Map();
+  let changed = false;
+  const materialize = async (dataUrl) => {
+    const cached = cache.get(dataUrl);
+    if (cached) return cached;
+    const result = await materializeImageDataUrl(dataUrl);
+    cache.set(dataUrl, result);
+    return result;
+  };
+  const visit = async (current) => {
+    if (Array.isArray(current)) {
+      for (const item of current) await visit(item);
+      return;
+    }
+    if (!isRecord(current)) return;
+    const props = isRecord(current.props) ? current.props : void 0;
+    const embeddedAssetSrc = current.typeName === "asset" && typeof props?.src === "string" && props.src.startsWith("data:image/") ? props.src : void 0;
+    if (embeddedAssetSrc) {
+      try {
+        const result = await materialize(embeddedAssetSrc);
+        current.props = { ...props, src: result.assetUrl };
+        const meta = isRecord(current.meta) ? current.meta : {};
+        current.meta = { ...meta, assetPath: result.assetPath, assetUrl: result.assetUrl };
+        changed = true;
+      } catch (error) {
+        console.warn("[ai-huabu] kept legacy image data URL for compatibility", error);
+      }
+    }
+    for (const key of ["assetUrl"]) {
+      const dataUrl = current[key];
+      if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) continue;
+      try {
+        const result = await materialize(dataUrl);
+        current[key] = result.assetUrl;
+        current.assetPath = result.assetPath;
+        changed = true;
+      } catch (error) {
+        console.warn("[ai-huabu] kept legacy image data URL for compatibility", error);
+      }
+    }
+    for (const child of Object.values(current)) await visit(child);
+  };
+  await visit(value);
+  return changed;
+}
+async function migrateSessionDataUrls() {
+  if (!session) return false;
+  const changes = [
+    await migrateDataUrlsInValue(session.snapshot),
+    await migrateDataUrlsInValue(session.shapes),
+    await migrateDataUrlsInValue(session.selection),
+    await migrateDataUrlsInValue(session.pendingOperations)
+  ];
+  return changes.some(Boolean);
 }
 function upsertShapeSummary(shape) {
   if (!session) throw new Error("Canvas session is not open");
@@ -33697,6 +33773,16 @@ async function start() {
       next(error);
     }
   });
+  app.post("/api/canvas/materialize-data-url", async (request, response, next) => {
+    try {
+      const body = isRecord(request.body) ? request.body : {};
+      const dataUrl = String(body.dataUrl ?? "");
+      if (!dataUrl) throw new Error("dataUrl is required.");
+      response.json(await materializeImageDataUrl(dataUrl));
+    } catch (error) {
+      next(error);
+    }
+  });
   app.post("/api/canvas/actions", async (request, response, next) => {
     try {
       const body = parseInput(applyCanvasActionsInputSchema, request.body ?? {});
@@ -34076,6 +34162,9 @@ async function start() {
           const hasSnapshot = Object.prototype.hasOwnProperty.call(message.payload, "snapshot");
           const hasShapes = Object.prototype.hasOwnProperty.call(message.payload, "shapes");
           const hasSelection = Object.prototype.hasOwnProperty.call(message.payload, "selection");
+          if (hasSnapshot) await migrateDataUrlsInValue(message.payload.snapshot);
+          if (hasShapes) await migrateDataUrlsInValue(message.payload.shapes);
+          if (hasSelection) await migrateDataUrlsInValue(message.payload.selection);
           if (hasSnapshot) session.snapshot = message.payload.snapshot;
           if (hasShapes) session.shapes = message.payload.shapes ?? [];
           if (hasSelection) session.selection = message.payload.selection ?? session.selection;

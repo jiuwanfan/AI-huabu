@@ -310,7 +310,10 @@ function summarizeShape(editor: Editor, shape: any): ShapeSummary {
   const meta = shape.meta ?? {}
   const bounds = getBounds(editor, shape)
   const asset = shape.props?.assetId ? (editor.getAsset(shape.props.assetId) as any) : undefined
-  const assetUrl = meta.assetUrl ?? (typeof asset?.props?.src === 'string' ? asset.props.src : undefined)
+  const assetUrl =
+    typeof asset?.props?.src === 'string' && !asset.props.src.startsWith('data:')
+      ? asset.props.src
+      : meta.assetUrl ?? (typeof asset?.props?.src === 'string' ? asset.props.src : undefined)
   const summary: ShapeSummary = {
     id: shape.id,
     type: shape.type,
@@ -321,7 +324,7 @@ function summarizeShape(editor: Editor, shape: any): ShapeSummary {
     aspectRatio: meta.aspectRatio,
     version: meta.version,
     parentShapeId: meta.parentShapeId,
-    assetPath: meta.assetPath,
+    assetPath: meta.assetPath ?? asset?.meta?.assetPath,
     assetUrl,
     meta
   }
@@ -423,6 +426,64 @@ function postJson<T>(url: string, body: unknown, options?: { signal?: AbortSigna
     if (!response.ok) throw new Error(await response.text())
     return response.json() as Promise<T>
   })
+}
+
+type MaterializedDataUrl = {
+  assetPath: string
+  assetUrl: string
+  width: number
+  height: number
+  mimeType: string
+}
+
+async function materializeEditorDataUrlAssets(editor: Editor) {
+  const assets = editor.store
+    .allRecords()
+    .filter(
+      (record: any) =>
+        record?.typeName === 'asset' &&
+        record?.type === 'image' &&
+        typeof record?.props?.src === 'string' &&
+        record.props.src.startsWith('data:image/')
+    ) as any[]
+  if (!assets.length) return false
+
+  const results = new Map<string, MaterializedDataUrl>()
+  for (const asset of assets) {
+    const dataUrl = asset.props.src as string
+    let result = results.get(dataUrl)
+    if (!result) {
+      result = await postJson<MaterializedDataUrl>('/api/canvas/materialize-data-url', { dataUrl })
+      results.set(dataUrl, result)
+    }
+    editor.updateAssets([
+      {
+        ...asset,
+        props: { ...asset.props, src: result.assetUrl },
+        meta: { ...(asset.meta ?? {}), assetPath: result.assetPath, assetUrl: result.assetUrl }
+      }
+    ] as any)
+
+    const linkedShapes = editor.store
+      .allRecords()
+      .filter(
+        (record: any) => record?.typeName === 'shape' && record?.props?.assetId === asset.id
+      ) as any[]
+    if (linkedShapes.length) {
+      editor.updateShapes(
+        linkedShapes.map((shape) => ({
+          id: shape.id,
+          type: shape.type,
+          meta: {
+            ...(shape.meta ?? {}),
+            assetPath: result!.assetPath,
+            assetUrl: result!.assetUrl
+          }
+        })) as any
+      )
+    }
+  }
+  return true
 }
 
 function getJson<T>(url: string): Promise<T> {
@@ -1564,6 +1625,8 @@ export function App() {
       let unlistenDocument: (() => void) | undefined
       let unlistenSession: (() => void) | undefined
       let lastSelectedShapeKey = ''
+      let materializingDocument = false
+      let materializeAgain = false
 
       const updateSelectedPanelImage = () => {
         const nextImage = selectedEditorImageSummary(editor)
@@ -1586,6 +1649,7 @@ export function App() {
           clearEditorPage(editor)
         }
         await applyPendingOperations(initialState.pendingOperations)
+        await materializeEditorDataUrlAssets(editor)
         updateSelectedPanelImage()
         lastSelectedShapeKey = editor.getSelectedShapeIds().map(String).join('|')
 
@@ -1619,10 +1683,31 @@ export function App() {
           setStatus('connecting')
         }
 
+        const queueMaterializedDocumentReport = () => {
+          if (materializingDocument) {
+            materializeAgain = true
+            return
+          }
+          materializingDocument = true
+          void (async () => {
+            do {
+              materializeAgain = false
+              await materializeEditorDataUrlAssets(editor)
+            } while (materializeAgain && !disposed)
+          })()
+            .catch((error) => {
+              console.warn('Could not materialize an embedded canvas image', error)
+            })
+            .finally(() => {
+              materializingDocument = false
+              if (!disposed) queueReportState('document')
+            })
+        }
+
         unlistenDocument = editor.store.listen(
           () => {
             updateSelectedPanelImage()
-            queueReportState('document')
+            queueMaterializedDocumentReport()
           },
           { scope: 'document' } as any
         )
