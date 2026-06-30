@@ -1,6 +1,6 @@
 {
   "name": "ai-huabu-codex-plugin",
-  "version": "0.1.0+codex.20260630041741",
+  "version": "0.1.0+codex.20260630065647",
   "description": "Codex-integrated infinite canvas for image generation, visual annotation, and iterative editing.",
   "author": {
     "name": "AI Huabu contributors"
