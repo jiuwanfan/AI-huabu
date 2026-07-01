@@ -222,7 +222,7 @@ summary:focus-visible {
   gap: 14px;
   height: 48px;
   padding: 0 14px;
-  border-bottom: 1px solid #d9dee7;
+  border-bottom: 1px solid var(--border);
   background: #fbfcfd;
   z-index: 540;
 }
@@ -240,6 +240,11 @@ summary:focus-visible {
   width: 220px;
   font-size: 14px;
   font-weight: 720;
+}
+
+.topbar-spacer {
+  min-width: 0;
+  flex: 1;
 }
 
 .canvas-title {
@@ -402,7 +407,7 @@ summary:focus-visible {
   position: relative;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #d9dee7;
+  border-right: 1px solid var(--border);
   overflow: hidden;
   padding-bottom: 58px;
   z-index: 30;
@@ -585,7 +590,7 @@ summary:focus-visible {
   position: relative;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid #d9dee7;
+  border-left: 1px solid var(--border);
   overflow: hidden;
   padding-bottom: 58px;
   z-index: 30;

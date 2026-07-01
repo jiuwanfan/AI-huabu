@@ -2249,10 +2249,7 @@ export function App() {
           <Sparkles size={18} />
           <span>AI Huabu</span>
         </div>
-        <div className="canvas-title">
-          <strong>{state?.metadata.name ?? 'Untitled AI Huabu'}</strong>
-          <span>{state?.canvasId ?? 'opening...'}</span>
-        </div>
+        <div className="topbar-spacer" aria-hidden="true" />
         <div className={`save-status save-status--${status}`} title={saveError ?? undefined}>
           {status === 'saving' ? (
             <LoaderCircle className="save-status-icon save-status-spinner" size={15} />
