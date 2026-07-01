@@ -647,7 +647,7 @@ export function App() {
   const [isRunningSkill, setIsRunningSkill] = useState(false)
   const [isStylePanelCollapsed, setIsStylePanelCollapsed] = useState(true)
   const [isSizePanelOpen, setIsSizePanelOpen] = useState(true)
-  const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false)
+  const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(true)
   const [isLeftSidebarMobileOpen, setIsLeftSidebarMobileOpen] = useState(false)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false)
   const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(readRightSidebarCollapsed)
