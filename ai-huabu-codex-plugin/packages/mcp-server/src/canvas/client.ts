@@ -13,6 +13,7 @@ let runtime: CanvasRuntime | undefined
 
 type CanvasHealth = {
   ok: boolean
+  product?: string
   appVersion?: string
   features?: string[]
   pluginRoot?: string
@@ -45,6 +46,9 @@ async function postJsonAt<T>(apiPath: string, body: unknown, base: string): Prom
 async function waitForCompatibleCanvas(url: string, timeoutMs: number, expectedPluginRoot?: string) {
   await waitForHealth(url, timeoutMs)
   const health = await fetchJsonAt<CanvasHealth>('/api/health', url)
+  if (health.product !== 'ai-huabu') {
+    throw new Error(`Canvas service at ${url} is not AI Huabu.`)
+  }
   if (!health.features?.includes('editRequestQueue')) {
     throw new Error(`Canvas service at ${url} is an older build without edit request queue support.`)
   }
@@ -82,10 +86,15 @@ export async function openCanvas(input: {
   }
 
   const result = await postJsonAt<{
+    product: 'ai-huabu'
     url: string
     canvasId: string
     storagePath: string
   }>('/api/canvas/open', { workspaceRoot, canvasId: input.canvasId }, runtime.url)
+
+  if (result.product !== 'ai-huabu') {
+    throw new Error(`Canvas service at ${runtime.url} returned the wrong product identity.`)
+  }
 
   runtime = {
     url: result.url.replace(/\/$/, ''),

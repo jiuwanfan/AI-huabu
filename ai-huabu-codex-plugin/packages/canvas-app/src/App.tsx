@@ -21,6 +21,7 @@ import {
   toRichText
 } from 'tldraw'
 import {
+  AlertCircle,
   ArrowRight,
   Box,
   Braces,
@@ -28,12 +29,15 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Copy,
+  History,
   Image as ImageIcon,
   Layers3,
   Lock,
+  LoaderCircle,
   MousePointer2,
   PanelRightOpen,
-  Save,
+  RotateCcw,
   Sparkles,
   SlidersHorizontal,
   Unlock,
@@ -66,9 +70,19 @@ type WsCommand = {
   payload: Record<string, unknown>
 }
 
-type Status = 'connecting' | 'connected' | 'saved' | 'error'
+type Status = 'connecting' | 'connected' | 'saving' | 'saved' | 'error'
 
 type ImportSource = 'upload' | 'drag_drop' | 'paste'
+
+const RIGHT_SIDEBAR_COLLAPSED_KEY = 'ai-huabu:right-sidebar-collapsed'
+
+function readRightSidebarCollapsed() {
+  try {
+    return window.localStorage.getItem(RIGHT_SIDEBAR_COLLAPSED_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
 
 type SkillRecommendation = {
   skillId: string
@@ -308,7 +322,10 @@ function summarizeShape(editor: Editor, shape: any): ShapeSummary {
   const meta = shape.meta ?? {}
   const bounds = getBounds(editor, shape)
   const asset = shape.props?.assetId ? (editor.getAsset(shape.props.assetId) as any) : undefined
-  const assetUrl = meta.assetUrl ?? (typeof asset?.props?.src === 'string' ? asset.props.src : undefined)
+  const assetUrl =
+    typeof asset?.props?.src === 'string' && !asset.props.src.startsWith('data:')
+      ? asset.props.src
+      : meta.assetUrl ?? (typeof asset?.props?.src === 'string' ? asset.props.src : undefined)
   const summary: ShapeSummary = {
     id: shape.id,
     type: shape.type,
@@ -319,7 +336,7 @@ function summarizeShape(editor: Editor, shape: any): ShapeSummary {
     aspectRatio: meta.aspectRatio,
     version: meta.version,
     parentShapeId: meta.parentShapeId,
-    assetPath: meta.assetPath,
+    assetPath: meta.assetPath ?? asset?.meta?.assetPath,
     assetUrl,
     meta
   }
@@ -341,6 +358,20 @@ function selectedEditorImageSummary(editor: Editor): ShapeSummary | undefined {
     .getSelectedShapes()
     .find((shape: any) => shape?.type === 'image') as any
   return selectedShape ? summarizeShape(editor, selectedShape) : undefined
+}
+
+function samePanelImage(left?: ShapeSummary, right?: ShapeSummary) {
+  if (left === right) return true
+  if (!left || !right) return false
+  return (
+    left.id === right.id &&
+    left.version === right.version &&
+    left.assetPath === right.assetPath &&
+    left.bounds.x === right.bounds.x &&
+    left.bounds.y === right.bounds.y &&
+    left.bounds.w === right.bounds.w &&
+    left.bounds.h === right.bounds.h
+  )
 }
 
 function loadImageDimensions(src: string) {
@@ -397,15 +428,74 @@ async function imageUrlToDataUrl(url: string) {
   return blobToDataUrl(blob)
 }
 
-function postJson<T>(url: string, body: unknown): Promise<T> {
+function postJson<T>(url: string, body: unknown, options?: { signal?: AbortSignal }): Promise<T> {
   return fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    signal: options?.signal
   }).then(async (response) => {
     if (!response.ok) throw new Error(await response.text())
     return response.json() as Promise<T>
   })
+}
+
+type MaterializedDataUrl = {
+  assetPath: string
+  assetUrl: string
+  width: number
+  height: number
+  mimeType: string
+}
+
+async function materializeEditorDataUrlAssets(editor: Editor) {
+  const assets = editor.store
+    .allRecords()
+    .filter(
+      (record: any) =>
+        record?.typeName === 'asset' &&
+        record?.type === 'image' &&
+        typeof record?.props?.src === 'string' &&
+        record.props.src.startsWith('data:image/')
+    ) as any[]
+  if (!assets.length) return false
+
+  const results = new Map<string, MaterializedDataUrl>()
+  for (const asset of assets) {
+    const dataUrl = asset.props.src as string
+    let result = results.get(dataUrl)
+    if (!result) {
+      result = await postJson<MaterializedDataUrl>('/api/canvas/materialize-data-url', { dataUrl })
+      results.set(dataUrl, result)
+    }
+    editor.updateAssets([
+      {
+        ...asset,
+        props: { ...asset.props, src: result.assetUrl },
+        meta: { ...(asset.meta ?? {}), assetPath: result.assetPath, assetUrl: result.assetUrl }
+      }
+    ] as any)
+
+    const linkedShapes = editor.store
+      .allRecords()
+      .filter(
+        (record: any) => record?.typeName === 'shape' && record?.props?.assetId === asset.id
+      ) as any[]
+    if (linkedShapes.length) {
+      editor.updateShapes(
+        linkedShapes.map((shape) => ({
+          id: shape.id,
+          type: shape.type,
+          meta: {
+            ...(shape.meta ?? {}),
+            assetPath: result!.assetPath,
+            assetUrl: result!.assetUrl
+          }
+        })) as any
+      )
+    }
+  }
+  return true
 }
 
 function getJson<T>(url: string): Promise<T> {
@@ -422,7 +512,7 @@ function clearEditorPage(editor: Editor) {
   editor.clearHistory()
 }
 
-type FloatingToolId = 'select' | 'holder' | 'save' | 'skills' | 'style'
+type FloatingToolId = 'select' | 'holder' | 'style'
 
 const floatingTools: Array<{
   id: FloatingToolId
@@ -431,11 +521,64 @@ const floatingTools: Array<{
 }> = [
   { id: 'select', title: '选择', icon: MousePointer2 },
   { id: 'holder', title: '新建图片框', icon: Box },
-  { id: 'save', title: '保存画布', icon: Save },
-  { id: 'skills', title: '打开 Skill 面板', icon: PanelRightOpen }
-  ,
-  { id: 'style', title: 'Style panel', icon: SlidersHorizontal }
+  { id: 'style', title: '样式', icon: SlidersHorizontal }
 ]
+
+const SKILL_CATEGORY_LABELS: Record<CanvasSkillCategory, string> = {
+  social_media: '社交媒体',
+  e_commerce: '电商',
+  branding: '品牌',
+  marketing: '营销',
+  studio: '创作工具'
+}
+
+type TaskTone = 'idle' | 'queued' | 'processing' | 'completed' | 'failed'
+
+function formatClockTime(value?: string | null) {
+  if (!value) return undefined
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return undefined
+  return new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).format(date)
+}
+
+function firstTaskLine(value: string) {
+  return value
+    .split('\n')
+    .map((line) => line.trim())
+    .find(Boolean) ?? ''
+}
+
+function TaskCard(props: {
+  title: string
+  status: string
+  tone: TaskTone
+  detail: string
+  updatedAt?: string | null
+}) {
+  const time = formatClockTime(props.updatedAt)
+  return (
+    <article className={`task-card task-card--${props.tone}`}>
+      <div className="task-card-heading">
+        <strong>{props.title}</strong>
+        <span className="task-status">
+          <i aria-hidden="true" />
+          {props.status}
+        </span>
+      </div>
+      <p>{props.detail}</p>
+      {props.tone === 'queued' || props.tone === 'processing' ? (
+        <div className="task-progress" aria-label={props.status}>
+          <span />
+        </div>
+      ) : null}
+      {time ? <small>更新于 {time}</small> : null}
+    </article>
+  )
+}
 
 function zoomAtScreenPoint(editor: Editor, point: { x: number; y: number }, factor: number) {
   const camera = editor.getCamera()
@@ -456,6 +599,12 @@ export function App() {
   const editorRef = useRef<Editor | null>(null)
   const socketRef = useRef<WebSocket | null>(null)
   const reportTimerRef = useRef<number | null>(null)
+  const reportMaxWaitTimerRef = useRef<number | null>(null)
+  const documentDirtyRef = useRef(false)
+  const selectionDirtyRef = useRef(false)
+  const saveAckTimerRef = useRef<number | null>(null)
+  const skillRecommendationTimerRef = useRef<number | null>(null)
+  const skillRecommendationAbortRef = useRef<AbortController | null>(null)
   const stateRef = useRef<CanvasStatePayload | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const rightDragRef = useRef<{
@@ -468,8 +617,11 @@ export function App() {
   }>({ active: false, moved: false, startX: 0, startY: 0, lastX: 0, lastY: 0 })
   const [state, setState] = useState<CanvasStatePayload | null>(null)
   const [status, setStatus] = useState<Status>('connecting')
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [lastError, setLastError] = useState<string | null>(null)
   const [annotationPreview, setAnnotationPreview] = useState<string>('还没有提交修图任务。')
+  const [annotationTaskUpdatedAt, setAnnotationTaskUpdatedAt] = useState<string | null>(null)
   const [importStatus, setImportStatus] = useState<string>('拖拽、粘贴或上传图片后，可直接调用 Skill。')
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false)
   const [queueStatus, setQueueStatus] = useState<EditRequestQueueStatus | null>(null)
@@ -490,11 +642,16 @@ export function App() {
   const [marketingBrochureBrief, setMarketingBrochureBrief] =
     useState<MarketingBrochureBriefForm>(DEFAULT_MARKETING_BROCHURE_BRIEF)
   const [skillRunPreview, setSkillRunPreview] = useState<string>('还没有运行 Skill。')
+  const [skillTaskUpdatedAt, setSkillTaskUpdatedAt] = useState<string | null>(null)
   const [skillInlineStatus, setSkillInlineStatus] = useState<string>('')
   const [isRunningSkill, setIsRunningSkill] = useState(false)
   const [isStylePanelCollapsed, setIsStylePanelCollapsed] = useState(true)
   const [isSizePanelOpen, setIsSizePanelOpen] = useState(true)
-  const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false)
+  const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(true)
+  const [isLeftSidebarMobileOpen, setIsLeftSidebarMobileOpen] = useState(false)
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false)
+  const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(readRightSidebarCollapsed)
+  const [isPathCopied, setIsPathCopied] = useState(false)
   const [isAspectLocked, setIsAspectLocked] = useState(true)
   const [activeFloatingTool, setActiveFloatingTool] = useState<FloatingToolId>('select')
   const [selectedPanelImage, setSelectedPanelImage] = useState<ShapeSummary | undefined>(undefined)
@@ -508,6 +665,7 @@ export function App() {
     () => state?.shapes.filter((shape) => shape.role === 'ai_image') ?? [],
     [state]
   )
+  const isCanvasEmpty = Boolean(state && state.shapes.length === 0)
   const selectedImage = useMemo(
     () => selected.find((shape) => shape.role === 'ai_image') ?? selected.find((shape) => shape.type === 'image'),
     [selected]
@@ -520,6 +678,15 @@ export function App() {
       }
     : undefined
   const selectedImageRatio = selectedImageSize ? selectedImageSize.w / selectedImageSize.h : undefined
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(RIGHT_SIDEBAR_COLLAPSED_KEY, String(isRightSidebarCollapsed))
+    } catch {
+      // The layout still works when browser storage is unavailable.
+    }
+  }, [isRightSidebarCollapsed])
+
   const tldrawComponents = useMemo(
     () => ({
       StylePanel: (props: any) => (
@@ -604,6 +771,52 @@ export function App() {
     }
   }, [queueStatus])
 
+  const annotationTaskView = useMemo(() => {
+    const detail = firstTaskLine(annotationPreview)
+    if (isSubmittingEdit) {
+      return { status: '提交中', tone: 'processing' as TaskTone, detail }
+    }
+    if (annotationPreview === '还没有提交修图任务。') {
+      return { status: '未开始', tone: 'idle' as TaskTone, detail: '在图片上添加标注后，可提交给 Codex 修图。' }
+    }
+    if (annotationPreview.includes('失败') || annotationPreview.includes('错误')) {
+      return { status: '失败', tone: 'failed' as TaskTone, detail }
+    }
+    if (annotationPreview.includes('还没有可修改') || annotationPreview.includes('不够明确')) {
+      return { status: '需补充', tone: 'idle' as TaskTone, detail }
+    }
+    if (queueStatus?.processingCount) {
+      return { status: '处理中', tone: 'processing' as TaskTone, detail }
+    }
+    if (queueStatus?.queuedCount || annotationPreview.includes('已提交') || annotationPreview.includes('已保存')) {
+      return { status: '等待 Codex', tone: 'queued' as TaskTone, detail }
+    }
+    return { status: '已记录', tone: 'completed' as TaskTone, detail }
+  }, [annotationPreview, isSubmittingEdit, queueStatus])
+
+  const skillTaskView = useMemo(() => {
+    const detail = firstTaskLine(skillRunPreview)
+    if (isRunningSkill) {
+      return { status: '提交中', tone: 'processing' as TaskTone, detail }
+    }
+    if (skillRunPreview === '还没有运行 Skill。') {
+      return { status: '未开始', tone: 'idle' as TaskTone, detail: '选择一个 Skill 并填写需求后即可提交。' }
+    }
+    if (skillRunPreview.includes('失败') || skillRunPreview.includes('无法读取')) {
+      return { status: '失败', tone: 'failed' as TaskTone, detail }
+    }
+    if (skillRunPreview.includes('needs_clarification') || skillRunPreview.includes('待补充')) {
+      return { status: '需补充', tone: 'idle' as TaskTone, detail }
+    }
+    if (skillRunPreview.includes('queued') || skillRunPreview.includes('已提交')) {
+      return { status: '等待 Codex', tone: 'queued' as TaskTone, detail }
+    }
+    if (skillRunPreview.includes('completed') || skillRunPreview.includes('已完成')) {
+      return { status: '已完成', tone: 'completed' as TaskTone, detail }
+    }
+    return { status: '已记录', tone: 'completed' as TaskTone, detail }
+  }, [isRunningSkill, skillRunPreview])
+
   const refreshQueueStatus = useCallback(async () => {
     try {
       const nextStatus = await getJson<EditRequestQueueStatus>('/api/canvas/edit-requests/status')
@@ -629,14 +842,21 @@ export function App() {
     }
   }, [refreshQueueStatus])
 
-  const reportState = useCallback(() => {
+  const reportState = useCallback((requestSaveFeedback = true) => {
     const editor = editorRef.current
     const socket = socketRef.current
     const currentState = stateRef.current
     if (!editor || !socket || socket.readyState !== WebSocket.OPEN || !currentState) return
+    if (reportTimerRef.current) window.clearTimeout(reportTimerRef.current)
+    if (reportMaxWaitTimerRef.current) window.clearTimeout(reportMaxWaitTimerRef.current)
+    reportTimerRef.current = null
+    reportMaxWaitTimerRef.current = null
+    documentDirtyRef.current = false
+    selectionDirtyRef.current = false
     const shapes = editor.getCurrentPageShapes().map((shape) => summarizeShape(editor, shape))
     const selectedShapeIds = editor.getSelectedShapeIds().map(String)
-    const selectionShapes = shapes.filter((shape) => selectedShapeIds.includes(shape.id))
+    const selectedShapeIdSet = new Set(selectedShapeIds)
+    const selectionShapes = shapes.filter((shape) => selectedShapeIdSet.has(shape.id))
     const payload: Partial<CanvasStatePayload> = {
       canvasId: currentState.canvasId,
       metadata: currentState.metadata,
@@ -650,7 +870,16 @@ export function App() {
         shapes: selectionShapes
       }
     }
-    socket.send(JSON.stringify({ type: 'client:state', payload }))
+    if (requestSaveFeedback) {
+      setStatus('saving')
+      setSaveError(null)
+      if (saveAckTimerRef.current) window.clearTimeout(saveAckTimerRef.current)
+      saveAckTimerRef.current = window.setTimeout(() => {
+        setSaveError('自动保存确认超时，请重试。')
+        setStatus('error')
+      }, 5000)
+    }
+    socket.send(JSON.stringify({ type: 'client:state', payload, requestSaveFeedback }))
     const nextState = {
       ...currentState,
       shapes,
@@ -659,13 +888,55 @@ export function App() {
     }
     stateRef.current = nextState
     setState(nextState)
-    setStatus('saved')
   }, [])
 
-  const queueReportState = useCallback(() => {
+  const reportSelection = useCallback(() => {
+    const editor = editorRef.current
+    const socket = socketRef.current
+    const currentState = stateRef.current
+    if (!editor || !socket || socket.readyState !== WebSocket.OPEN || !currentState) return
     if (reportTimerRef.current) window.clearTimeout(reportTimerRef.current)
-    reportTimerRef.current = window.setTimeout(reportState, 500)
-  }, [reportState])
+    if (reportMaxWaitTimerRef.current) window.clearTimeout(reportMaxWaitTimerRef.current)
+    reportTimerRef.current = null
+    reportMaxWaitTimerRef.current = null
+    selectionDirtyRef.current = false
+    const selectedShapeIds = editor.getSelectedShapeIds().map(String)
+    const selectedShapeIdSet = new Set(selectedShapeIds)
+    const selection = {
+      canvasId: currentState.canvasId,
+      pageId: currentState.metadata.activePageId,
+      selectedShapeIds,
+      shapes: currentState.shapes.filter((shape) => selectedShapeIdSet.has(shape.id))
+    }
+    socket.send(
+      JSON.stringify({
+        type: 'client:state',
+        payload: { canvasId: currentState.canvasId, selection },
+        requestSaveFeedback: false
+      })
+    )
+    const nextState = { ...currentState, selection }
+    stateRef.current = nextState
+    setState(nextState)
+  }, [])
+
+  const flushQueuedReport = useCallback(() => {
+    if (documentDirtyRef.current) {
+      reportState()
+      return
+    }
+    if (selectionDirtyRef.current) reportSelection()
+  }, [reportSelection, reportState])
+
+  const queueReportState = useCallback((scope: 'document' | 'selection' = 'document') => {
+    if (scope === 'document') documentDirtyRef.current = true
+    else selectionDirtyRef.current = true
+    if (reportTimerRef.current) window.clearTimeout(reportTimerRef.current)
+    reportTimerRef.current = window.setTimeout(flushQueuedReport, 500)
+    if (!reportMaxWaitTimerRef.current) {
+      reportMaxWaitTimerRef.current = window.setTimeout(flushQueuedReport, 2000)
+    }
+  }, [flushQueuedReport])
 
   const resizeSelectedImage = useCallback(
     (nextSize: { w: number; h: number }) => {
@@ -1374,8 +1645,16 @@ export function App() {
     (editor: Editor) => {
       editorRef.current = editor
       let disposed = false
-      let unlisten: (() => void) | undefined
-      let interval: number | undefined
+      let unlistenDocument: (() => void) | undefined
+      let unlistenSession: (() => void) | undefined
+      let lastSelectedShapeKey = ''
+      let materializingDocument = false
+      let materializeAgain = false
+
+      const updateSelectedPanelImage = () => {
+        const nextImage = selectedEditorImageSummary(editor)
+        setSelectedPanelImage((current) => (samePanelImage(current, nextImage) ? current : nextImage))
+      }
 
       void (async () => {
         const response = await fetch('/api/canvas/state')
@@ -1393,7 +1672,9 @@ export function App() {
           clearEditorPage(editor)
         }
         await applyPendingOperations(initialState.pendingOperations)
-        setSelectedPanelImage(selectedEditorImageSummary(editor))
+        await materializeEditorDataUrlAssets(editor)
+        updateSelectedPanelImage()
+        lastSelectedShapeKey = editor.getSelectedShapeIds().map(String).join('|')
 
         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
         const socket = new WebSocket(`${protocol}://${window.location.host}/ws`)
@@ -1404,9 +1685,20 @@ export function App() {
         }
         socket.onmessage = (event) => {
           const message = JSON.parse(String(event.data))
+          if (message.type === 'server:saved') {
+            if (saveAckTimerRef.current) window.clearTimeout(saveAckTimerRef.current)
+            saveAckTimerRef.current = null
+            setLastSavedAt(message.savedAt ?? new Date().toISOString())
+            setSaveError(null)
+            setStatus('saved')
+            return
+          }
           if (message.type === 'command') void handleCommand(message)
         }
         socket.onerror = () => {
+          if (saveAckTimerRef.current) window.clearTimeout(saveAckTimerRef.current)
+          saveAckTimerRef.current = null
+          setSaveError('自动保存连接失败，请重试。')
           setStatus('error')
           setLastError('WebSocket connection failed')
         }
@@ -1414,15 +1706,45 @@ export function App() {
           setStatus('connecting')
         }
 
-        unlisten = editor.store.listen(
+        const queueMaterializedDocumentReport = () => {
+          if (materializingDocument) {
+            materializeAgain = true
+            return
+          }
+          materializingDocument = true
+          void (async () => {
+            do {
+              materializeAgain = false
+              await materializeEditorDataUrlAssets(editor)
+            } while (materializeAgain && !disposed)
+          })()
+            .catch((error) => {
+              console.warn('Could not materialize an embedded canvas image', error)
+            })
+            .finally(() => {
+              materializingDocument = false
+              if (!disposed) queueReportState('document')
+            })
+        }
+
+        unlistenDocument = editor.store.listen(
           () => {
-            setSelectedPanelImage(selectedEditorImageSummary(editor))
-            queueReportState()
+            updateSelectedPanelImage()
+            queueMaterializedDocumentReport()
           },
-          { scope: 'all' } as any
+          { scope: 'document' } as any
         )
 
-        interval = window.setInterval(queueReportState, 2000)
+        unlistenSession = editor.store.listen(
+          () => {
+            const nextSelectedShapeKey = editor.getSelectedShapeIds().map(String).join('|')
+            if (nextSelectedShapeKey === lastSelectedShapeKey) return
+            lastSelectedShapeKey = nextSelectedShapeKey
+            updateSelectedPanelImage()
+            queueReportState('selection')
+          },
+          { scope: 'session' } as any
+        )
       })().catch((error) => {
         setStatus('error')
         setLastError(error instanceof Error ? error.message : String(error))
@@ -1430,12 +1752,17 @@ export function App() {
 
       return () => {
         disposed = true
-        if (interval) window.clearInterval(interval)
-        unlisten?.()
+        if (reportTimerRef.current) window.clearTimeout(reportTimerRef.current)
+        if (reportMaxWaitTimerRef.current) window.clearTimeout(reportMaxWaitTimerRef.current)
+        reportTimerRef.current = null
+        reportMaxWaitTimerRef.current = null
+        if (saveAckTimerRef.current) window.clearTimeout(saveAckTimerRef.current)
+        unlistenDocument?.()
+        unlistenSession?.()
         socketRef.current?.close()
       }
     },
-    [applyPendingOperations, handleCommand, queueReportState]
+    [applyPendingOperations, handleCommand, queueReportState, reportState]
   )
 
   const createDefaultHolder = async () => {
@@ -1456,11 +1783,18 @@ export function App() {
 
   const saveSnapshot = async () => {
     try {
+      setStatus('saving')
+      setSaveError(null)
       reportState()
-      await postJson('/api/canvas/save', {})
+      const result = await postJson<{ savedAt?: string }>('/api/canvas/save', {})
+      if (saveAckTimerRef.current) window.clearTimeout(saveAckTimerRef.current)
+      saveAckTimerRef.current = null
+      setLastSavedAt(result.savedAt ?? new Date().toISOString())
       setStatus('saved')
     } catch (error) {
-      setLastError(error instanceof Error ? error.message : String(error))
+      const message = error instanceof Error ? error.message : String(error)
+      setSaveError(message)
+      setLastError(message)
       setStatus('error')
     }
   }
@@ -1546,17 +1880,27 @@ export function App() {
   }, [])
 
   const refreshSkillRecommendations = useCallback(async (userRequest?: string) => {
+    skillRecommendationAbortRef.current?.abort()
+    const controller = new AbortController()
+    skillRecommendationAbortRef.current = controller
     try {
       const result = await postJson<{ recommendations: SkillRecommendation[] }>(
         '/api/canvas/skills/recommend',
         {
           userRequest,
           maxResults: 5
-        }
+        },
+        { signal: controller.signal }
       )
+      if (controller.signal.aborted) return
       setSkillRecommendations(result.recommendations)
-    } catch {
+    } catch (error) {
+      if ((error as Error)?.name === 'AbortError') return
       setSkillRecommendations([])
+    } finally {
+      if (skillRecommendationAbortRef.current === controller) {
+        skillRecommendationAbortRef.current = null
+      }
     }
   }, [])
 
@@ -1565,7 +1909,28 @@ export function App() {
   }, [refreshSkills])
 
   useEffect(() => {
-    if (isSkillPanelOpen) void refreshSkillRecommendations(skillRequest)
+    if (!isSkillPanelOpen) {
+      if (skillRecommendationTimerRef.current) {
+        window.clearTimeout(skillRecommendationTimerRef.current)
+        skillRecommendationTimerRef.current = null
+      }
+      skillRecommendationAbortRef.current?.abort()
+      skillRecommendationAbortRef.current = null
+      return
+    }
+    if (skillRecommendationTimerRef.current) window.clearTimeout(skillRecommendationTimerRef.current)
+    skillRecommendationTimerRef.current = window.setTimeout(() => {
+      skillRecommendationTimerRef.current = null
+      void refreshSkillRecommendations(skillRequest)
+    }, 350)
+    return () => {
+      if (skillRecommendationTimerRef.current) {
+        window.clearTimeout(skillRecommendationTimerRef.current)
+        skillRecommendationTimerRef.current = null
+      }
+      skillRecommendationAbortRef.current?.abort()
+      skillRecommendationAbortRef.current = null
+    }
   }, [isSkillPanelOpen, refreshSkillRecommendations, selectedShapeKey, skillRequest])
 
   const openSkillPanel = async () => {
@@ -1574,7 +1939,6 @@ export function App() {
     setSkillInlineStatus('')
     if (nextOpen) {
       await refreshSkills()
-      await refreshSkillRecommendations(skillRequest)
     }
   }
 
@@ -1587,14 +1951,6 @@ export function App() {
     }
     if (toolId === 'holder') {
       await createDefaultHolder()
-      return
-    }
-    if (toolId === 'save') {
-      saveSnapshot()
-      return
-    }
-    if (toolId === 'skills') {
-      await openSkillPanel()
       return
     }
     if (toolId === 'style') {
@@ -1674,10 +2030,12 @@ export function App() {
     if (selectedSkillDisabledReason) {
       setSkillInlineStatus(selectedSkillDisabledReason)
       setSkillRunPreview(selectedSkillDisabledReason)
+      setSkillTaskUpdatedAt(new Date().toISOString())
       return
     }
     try {
       setIsRunningSkill(true)
+      setSkillTaskUpdatedAt(new Date().toISOString())
       const preparingMessage = `正在提交 ${selectedSkill.name} 给 Codex...`
       setSkillInlineStatus(preparingMessage)
       setSkillRunPreview(preparingMessage)
@@ -1763,10 +2121,12 @@ export function App() {
           : '当前图片数据无法读取。请用顶部「导入图片」、拖拽或粘贴重新导入后再提交。'
       )
       setSkillRunPreview(preview)
+      setSkillTaskUpdatedAt(new Date().toISOString())
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setSkillInlineStatus(`Skill 运行失败：${message}`)
       setSkillRunPreview(`Skill 运行失败：${message}`)
+      setSkillTaskUpdatedAt(new Date().toISOString())
       setLastError(message)
       setStatus('error')
     } finally {
@@ -1778,10 +2138,12 @@ export function App() {
     const target = selected.find((shape) => shape.role === 'ai_image') ?? aiImages[0]
     if (!target) {
       setAnnotationPreview('还没有可修改的 AI 图片。请先让 Codex 生成并插入一张图片。')
+      setAnnotationTaskUpdatedAt(new Date().toISOString())
       return
     }
     try {
       setIsSubmittingEdit(true)
+      setAnnotationTaskUpdatedAt(new Date().toISOString())
       setAnnotationPreview('正在保存这批标注，并提交给 Codex...')
       const statusBeforeSubmit = queueStatus ?? (await refreshQueueStatus())
       reportState()
@@ -1831,6 +2193,7 @@ export function App() {
           .filter((line) => line !== undefined)
           .join('\n')
       )
+      setAnnotationTaskUpdatedAt(new Date().toISOString())
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : String(error)
       const message = rawMessage.includes('Cannot POST /api/canvas/edit-request')
@@ -1839,30 +2202,82 @@ export function App() {
       setLastError(message)
       setStatus('error')
       setAnnotationPreview(`提交修图任务失败：${message}`)
+      setAnnotationTaskUpdatedAt(new Date().toISOString())
     } finally {
       setIsSubmittingEdit(false)
     }
   }
 
+  const copyStoragePath = async () => {
+    const storagePath = state?.storagePath
+    if (!storagePath) return
+    try {
+      await navigator.clipboard.writeText(storagePath)
+      setIsPathCopied(true)
+      window.setTimeout(() => setIsPathCopied(false), 1600)
+    } catch {
+      setLastError('无法复制保存路径，请手动选择路径文本。')
+    }
+  }
+
   return (
-    <div className={isLeftSidebarCollapsed ? 'app-shell app-shell-left-collapsed' : 'app-shell'}>
+    <div
+      className={[
+        'app-shell',
+        isLeftSidebarCollapsed ? 'app-shell-left-collapsed' : '',
+        isRightSidebarCollapsed ? 'app-shell-right-collapsed' : '',
+        isLeftSidebarMobileOpen ? 'left-sidebar-mobile-open' : '',
+        isRightSidebarOpen ? 'right-sidebar-open' : ''
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <header className="topbar">
+        <button
+          className="topbar-panel-button topbar-left-panel-button"
+          aria-label="打开画布内容侧栏"
+          aria-expanded={isLeftSidebarMobileOpen}
+          type="button"
+          onClick={() => {
+            setIsRightSidebarOpen(false)
+            setIsLeftSidebarMobileOpen(true)
+          }}
+        >
+          <Layers3 size={18} />
+        </button>
         <div className="brand">
           <Sparkles size={18} />
           <span>AI Huabu</span>
         </div>
-        <div className="canvas-title">
-          <strong>{state?.metadata.name ?? 'Untitled AI Huabu'}</strong>
-          <span>{state?.canvasId ?? 'opening...'}</span>
+        <div className="topbar-spacer" aria-hidden="true" />
+        <div className={`save-status save-status--${status}`} title={saveError ?? undefined}>
+          {status === 'saving' ? (
+            <LoaderCircle className="save-status-icon save-status-spinner" size={15} />
+          ) : status === 'error' ? (
+            <AlertCircle className="save-status-icon" size={15} />
+          ) : (
+            <CheckCircle2 className="save-status-icon" size={15} />
+          )}
+          <span>
+            {status === 'saving'
+              ? '自动保存中…'
+              : status === 'saved'
+                ? `已自动保存${formatClockTime(lastSavedAt) ? ` · ${formatClockTime(lastSavedAt)}` : ''}`
+                : status === 'connected'
+                  ? '已连接'
+                  : status === 'error'
+                    ? saveError
+                      ? '保存失败'
+                      : '操作失败'
+                    : '连接中'}
+          </span>
+          {saveError ? (
+            <button className="save-retry-button" type="button" onClick={() => void saveSnapshot()}>
+              <RotateCcw size={13} />
+              <span>重试</span>
+            </button>
+          ) : null}
         </div>
-        <div className={`save-status save-status--${status}`}>
-          <CheckCircle2 size={15} />
-          {status === 'saved' ? '已保存' : status === 'connected' ? '已连接' : status === 'error' ? '错误' : '连接中'}
-        </div>
-        <button className="topbar-button" onClick={saveSnapshot}>
-          <Save size={16} />
-          保存画布
-        </button>
         <input
           ref={fileInputRef}
           className="hidden-file-input"
@@ -1870,25 +2285,81 @@ export function App() {
           accept="image/png,image/jpeg,image/webp"
           onChange={handleFileInput}
         />
-        <button className="topbar-button" onClick={() => fileInputRef.current?.click()}>
+        <button
+          className="topbar-button"
+          aria-label="导入图片"
+          title="导入图片"
+          onClick={() => fileInputRef.current?.click()}
+        >
           <Upload size={16} />
-          导入图片
+          <span className="topbar-button-label">导入图片</span>
+        </button>
+        <button
+          className="topbar-panel-button topbar-right-panel-button"
+          aria-label="打开 AI 操作侧栏"
+          aria-expanded={isRightSidebarOpen}
+          type="button"
+          onClick={() => {
+            setIsLeftSidebarMobileOpen(false)
+            setIsRightSidebarOpen(true)
+          }}
+        >
+          <PanelRightOpen size={18} />
         </button>
       </header>
 
       <aside className={isLeftSidebarCollapsed ? 'sidebar sidebar-left sidebar-left-collapsed' : 'sidebar sidebar-left'}>
+        <div className="sidebar-mobile-header sidebar-left-mobile-header">
+          <strong>画布内容</strong>
+          <button aria-label="关闭画布内容侧栏" type="button" onClick={() => setIsLeftSidebarMobileOpen(false)}>
+            <ChevronLeft size={18} />
+          </button>
+        </div>
+        <nav className="sidebar-left-rail" aria-label="画布内容导航">
+          <button
+            className="sidebar-left-rail-item sidebar-left-rail-item-active"
+            aria-label="主画布"
+            type="button"
+            onClick={() => setIsLeftSidebarCollapsed(false)}
+          >
+            <Layers3 size={18} />
+            <span className="sidebar-left-rail-tooltip" aria-hidden="true">主画布</span>
+          </button>
+          <span className="sidebar-left-rail-divider" aria-hidden="true" />
+          <button
+            className="sidebar-left-rail-item"
+            aria-label={`图片，${aiImages.length} 张`}
+            type="button"
+            onClick={() => setIsLeftSidebarCollapsed(false)}
+          >
+            <ImageIcon size={18} />
+            <span className="sidebar-left-rail-tooltip" aria-hidden="true">图片 · {aiImages.length}</span>
+          </button>
+          <button
+            className="sidebar-left-rail-item"
+            aria-label={`版本，${aiImages.length} 个`}
+            type="button"
+            onClick={() => setIsLeftSidebarCollapsed(false)}
+          >
+            <History size={18} />
+            <span className="sidebar-left-rail-tooltip" aria-hidden="true">版本 · {aiImages.length}</span>
+          </button>
+        </nav>
         <div className="sidebar-left-content">
         <section>
-          <h2>Pages</h2>
-          <button className="row row-active">
+          <h2>页面</h2>
+          <button className="row row-active" title="主画布">
             <Layers3 size={16} />
-            主画布
+            <span className="row-label">主画布</span>
           </button>
         </section>
         <section>
-          <h2>图片</h2>
+          <h2><span>图片</span><small>{aiImages.length}</small></h2>
           {aiImages.length === 0 ? (
-            <p className="empty">还没有生成图片。</p>
+            <div className="sidebar-empty-state">
+              <ImageIcon size={14} />
+              <span>暂无图片</span>
+            </div>
           ) : (
             aiImages.map((image) => (
               <button className="row" key={image.id}>
@@ -1899,12 +2370,18 @@ export function App() {
           )}
         </section>
         <section>
-          <h2>版本</h2>
-          <div className="version-chain">
-            {aiImages.map((image, index) => (
-              <span key={image.id}>{index > 0 ? ` -> v${image.version ?? index + 1}` : `v${image.version ?? 1}`}</span>
-            ))}
-          </div>
+          <h2><span>版本</span><small>{aiImages.length}</small></h2>
+          {aiImages.length === 0 ? (
+            <div className="sidebar-empty-state sidebar-empty-state-compact">
+              <span>暂无版本</span>
+            </div>
+          ) : (
+            <div className="version-chain">
+              {aiImages.map((image, index) => (
+                <span key={image.id}>{index > 0 ? ` -> v${image.version ?? index + 1}` : `v${image.version ?? 1}`}</span>
+              ))}
+            </div>
+          )}
         </section>
         </div>
         <button
@@ -1913,7 +2390,11 @@ export function App() {
           type="button"
           onClick={() => setIsLeftSidebarCollapsed((value) => !value)}
         >
-          {isLeftSidebarCollapsed ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
+          {isLeftSidebarCollapsed ? (
+            <ChevronRight className="sidebar-collapse-icon" size={17} />
+          ) : (
+            <ChevronLeft className="sidebar-collapse-icon" size={17} />
+          )}
         </button>
       </aside>
 
@@ -1940,6 +2421,32 @@ export function App() {
             cameraOptions={{ wheelBehavior: 'none' }}
           />
         </div>
+        {isCanvasEmpty ? (
+          <div className="canvas-empty-state">
+            <div className="canvas-empty-card" onPointerDown={(event) => event.stopPropagation()}>
+              <div className="canvas-empty-icon">
+                <Sparkles size={20} />
+              </div>
+              <h1>从一个起点开始创作</h1>
+              <p>导入现有图片，或先建立一个图片框，再让 Codex 帮你生成和修改。</p>
+              <ol className="canvas-empty-steps">
+                <li><span>1</span><strong>上传图片或新建图片框</strong></li>
+                <li><span>2</span><strong>回到 Codex 描述想要的画面</strong></li>
+                <li><span>3</span><strong>在画布标注后提交修图</strong></li>
+              </ol>
+              <div className="canvas-empty-actions">
+                <button className="primary-action" onClick={() => fileInputRef.current?.click()}>
+                  <Upload size={16} />
+                  上传图片
+                </button>
+                <button className="action" onClick={createDefaultHolder}>
+                  <Box size={16} />
+                  新建图片框
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
         {panelImage && selectedImageSize ? (
           <div
             className={isSizePanelOpen ? 'image-size-panel' : 'image-size-panel image-size-panel-collapsed'}
@@ -2019,9 +2526,7 @@ export function App() {
           {floatingTools.map((tool) => {
             const Icon = tool.icon
             const isToolActive =
-              tool.id === 'skills'
-                ? isSkillPanelOpen
-                : tool.id === 'style'
+              tool.id === 'style'
                   ? !isStylePanelCollapsed
                   : activeFloatingTool === tool.id
             return (
@@ -2036,54 +2541,73 @@ export function App() {
               </button>
             )
           })}
-          <button title="新建图片框" onClick={createDefaultHolder}>
-            <Box size={18} />
-          </button>
-          <button title="保存画布" onClick={saveSnapshot}>
-            <Save size={18} />
-          </button>
-          <button title="打开 Skill 面板" onClick={openSkillPanel}>
-            <PanelRightOpen size={18} />
-          </button>
         </div>
       </main>
 
-      <aside className="sidebar sidebar-right">
-        <section>
-          <h2>图片导入</h2>
-          <button className="primary-action" onClick={() => fileInputRef.current?.click()}>
-            <Upload size={16} />
-            上传图片
+      <aside className={isRightSidebarCollapsed ? 'sidebar sidebar-right sidebar-right-collapsed' : 'sidebar sidebar-right'}>
+        <div className="sidebar-mobile-header">
+          <strong>AI 操作</strong>
+          <button aria-label="关闭 AI 操作侧栏" type="button" onClick={() => setIsRightSidebarOpen(false)}>
+            <ChevronRight size={18} />
           </button>
-          <p className="empty">{importStatus}</p>
-        </section>
+        </div>
+        <div className="sidebar-right-rail" aria-hidden="true">
+          <div className="sidebar-rail-brand">
+            <Sparkles size={18} />
+            <span>AI</span>
+          </div>
+          <div className="sidebar-rail-icons">
+            <span title="标注修图"><Wand2 size={17} /></span>
+            <span title="Skill 面板"><PanelRightOpen size={17} /></span>
+            <span title="任务记录"><CheckCircle2 size={17} /></span>
+          </div>
+        </div>
+        <div className="sidebar-right-content">
         <section>
           <h2>AI 操作</h2>
           <div className={`listener-card listener-card--${listenerView.kind}`}>
-            <strong>{listenerView.title}</strong>
+            <div className="listener-card-heading">
+              {listenerView.kind === 'active' ? (
+                <CheckCircle2 size={15} />
+              ) : listenerView.kind === 'busy' ? (
+                <LoaderCircle className="listener-card-spinner" size={15} />
+              ) : (
+                <AlertCircle size={15} />
+              )}
+              <strong>{listenerView.title}</strong>
+            </div>
             <span>{listenerView.detail}</span>
           </div>
-          <button className="primary-action" onClick={createDefaultHolder}>
-            <Box size={16} />
-            新建图片框
+          <button
+            className="primary-action stateful-action"
+            aria-busy={isSubmittingEdit}
+            disabled={isSubmittingEdit}
+            type="button"
+            onClick={submitAnnotationEdit}
+          >
+            {isSubmittingEdit ? (
+              <LoaderCircle className="button-loading-icon" size={16} />
+            ) : (
+              <Wand2 className="button-leading-icon" size={16} />
+            )}
+            <span className="button-state-label" key={isSubmittingEdit ? 'submitting-edit' : 'submit-edit'}>
+              {isSubmittingEdit ? '正在提交' : '按标注修图'}
+            </span>
           </button>
-          <button className="action" onClick={submitAnnotationEdit}>
-            <Wand2 size={16} />
-            {isSubmittingEdit ? '正在提交' : '按标注修图'}
-          </button>
-          <details className="advanced-actions">
-            <summary>更多操作</summary>
-            <button className="action" onClick={saveSnapshot}>
-              <Save size={16} />
-              保存画布
-            </button>
-          </details>
+          <p className="operation-message">{importStatus}</p>
         </section>
         <section>
-          <h2>Skills</h2>
-          <button className="action" onClick={openSkillPanel}>
-            <PanelRightOpen size={16} />
-            打开 Skill 面板
+          <h2>技能</h2>
+          <button
+            className={isSkillPanelOpen ? 'action skill-panel-trigger skill-panel-trigger-open' : 'action skill-panel-trigger'}
+            aria-expanded={isSkillPanelOpen}
+            type="button"
+            onClick={openSkillPanel}
+          >
+            <PanelRightOpen className="skill-panel-trigger-icon" size={16} />
+            <span className="button-state-label" key={isSkillPanelOpen ? 'collapse-skills' : 'expand-skills'}>
+              {isSkillPanelOpen ? '收起 Skill 面板' : '打开 Skill 面板'}
+            </span>
           </button>
           {isSkillPanelOpen ? (
             <div className="skill-panel">
@@ -2093,16 +2617,26 @@ export function App() {
                     <button
                       className={category === activeSkillCategory ? 'skill-tab skill-tab-active' : 'skill-tab'}
                       key={category}
-                      onClick={() => setActiveSkillCategory(category)}
+                      role="tab"
+                      aria-selected={category === activeSkillCategory}
+                      onClick={() => {
+                        setActiveSkillCategory(category)
+                        setSelectedSkillId(null)
+                        setSkillInlineStatus('')
+                      }}
                     >
-                      {category.replace('_', ' ')}
+                      {SKILL_CATEGORY_LABELS[category]}
                     </button>
                   )
                 )}
               </div>
               <div className="skill-list">
                 {visibleSkills.length === 0 ? (
-                  <p className="empty">这个分类还没有 Skill。</p>
+                  <div className="skill-empty-state">
+                    <Sparkles size={18} />
+                    <strong>该分类暂无 Skill</strong>
+                    <span>可以切换其他分类，或先选中一张画布图片。</span>
+                  </div>
                 ) : (
                   visibleSkills.map((skill) => {
                     const recommendation = skillRecommendations.find((item) => item.skillId === skill.id)
@@ -2120,15 +2654,27 @@ export function App() {
                               ? 'skill-row skill-row-recommended'
                               : 'skill-row'
                         }
+                        aria-pressed={selectedSkillId === skill.id}
                         disabled={disabled}
                         key={skill.id}
-                        onClick={() => setSelectedSkillId(skill.id)}
+                        title={disabledReason}
+                        onClick={() => {
+                          const shouldClear = selectedSkillId === skill.id
+                          setSelectedSkillId(shouldClear ? null : skill.id)
+                          if (shouldClear) setSkillInlineStatus('')
+                        }}
                       >
                         <span>
                           <strong>{skill.name}</strong>
                           <small>{disabledReason ?? recommendation?.reason ?? skill.description}</small>
                         </span>
-                        {recommendedSkillIds.has(skill.id) ? <Sparkles size={15} /> : <ChevronDown size={15} />}
+                        {selectedSkillId === skill.id ? (
+                          <CheckCircle2 className="skill-row-icon skill-row-check" size={16} />
+                        ) : recommendedSkillIds.has(skill.id) ? (
+                          <Sparkles className="skill-row-icon" size={15} />
+                        ) : (
+                          <ChevronDown className="skill-row-icon" size={15} />
+                        )}
                       </button>
                     )
                   })
@@ -2785,12 +3331,21 @@ export function App() {
                     }
                   />
                   <button
-                    className="primary-action"
+                    className="primary-action stateful-action"
+                    aria-busy={isRunningSkill}
                     onClick={runSelectedSkill}
                     disabled={isRunningSkill || Boolean(selectedSkillDisabledReason)}
+                    title={selectedSkillDisabledReason}
+                    type="button"
                   >
-                    <Wand2 size={16} />
-                    {isRunningSkill ? '正在提交...' : '提交给 Codex 生成'}
+                    {isRunningSkill ? (
+                      <LoaderCircle className="button-loading-icon" size={16} />
+                    ) : (
+                      <Wand2 className="button-leading-icon" size={16} />
+                    )}
+                    <span className="button-state-label" key={isRunningSkill ? 'running-skill' : 'run-skill'}>
+                      {isRunningSkill ? '正在提交...' : '提交给 Codex 生成'}
+                    </span>
                   </button>
                   {(skillInlineStatus || selectedSkillDisabledReason) && (
                     <pre className="skill-inline-status">
@@ -2805,7 +3360,10 @@ export function App() {
         <section>
           <h2>选中内容</h2>
           {selected.length === 0 ? (
-            <p className="empty">当前没有选中内容。</p>
+            <div className="selection-empty-state">
+              <MousePointer2 size={17} />
+              <span>在画布中选择图片后，这里会显示尺寸与版本信息。</span>
+            </div>
           ) : (
             selected.map((shape) => (
               <div className="metadata-card" key={shape.id}>
@@ -2822,27 +3380,90 @@ export function App() {
         </section>
         <section>
           <h2>任务记录</h2>
-          <pre className="json-preview">{annotationPreview}</pre>
-          <pre className="json-preview">{skillRunPreview}</pre>
+          <div className="task-list">
+            <TaskCard
+              title="标注修图"
+              status={annotationTaskView.status}
+              tone={annotationTaskView.tone}
+              detail={annotationTaskView.detail}
+              updatedAt={annotationTaskUpdatedAt}
+            />
+            <TaskCard
+              title="Skill 生成"
+              status={skillTaskView.status}
+              tone={skillTaskView.tone}
+              detail={skillTaskView.detail}
+              updatedAt={skillTaskUpdatedAt}
+            />
+          </div>
         </section>
         <section>
           <h2>保存位置</h2>
-          <p className="path-text">{state?.storagePath ?? 'Opening canvas storage...'}</p>
+          <div className="path-card">
+            <code className="path-text" title={state?.storagePath}>
+              {state?.storagePath ?? '正在打开画布存储…'}
+            </code>
+            <button
+              className="path-copy-button"
+              type="button"
+              disabled={!state?.storagePath}
+              onClick={() => void copyStoragePath()}
+            >
+              {isPathCopied ? <CheckCircle2 size={13} /> : <Copy size={13} />}
+              <span>{isPathCopied ? '已复制' : '复制'}</span>
+            </button>
+          </div>
           {lastError ? <p className="error-text">{lastError}</p> : null}
         </section>
+        </div>
+        <button
+          className="sidebar-collapse-button sidebar-right-collapse-button"
+          aria-label={isRightSidebarCollapsed ? '展开 AI 操作侧栏' : '收起 AI 操作侧栏'}
+          title={isRightSidebarCollapsed ? '展开 AI 操作' : '收起 AI 操作'}
+          type="button"
+          onClick={() =>
+            setIsRightSidebarCollapsed((value) => {
+              const nextValue = !value
+              try {
+                window.localStorage.setItem(RIGHT_SIDEBAR_COLLAPSED_KEY, String(nextValue))
+              } catch {
+                // The layout still works when browser storage is unavailable.
+              }
+              return nextValue
+            })
+          }
+        >
+          {isRightSidebarCollapsed ? (
+            <ChevronLeft className="sidebar-collapse-icon" size={17} />
+          ) : (
+            <ChevronRight className="sidebar-collapse-icon" size={17} />
+          )}
+        </button>
       </aside>
 
+      {isLeftSidebarMobileOpen || isRightSidebarOpen ? (
+        <button
+          className="sidebar-backdrop"
+          aria-label="关闭侧栏"
+          type="button"
+          onClick={() => {
+            setIsLeftSidebarMobileOpen(false)
+            setIsRightSidebarOpen(false)
+          }}
+        />
+      ) : null}
+
       <footer className="statusbar">
-        <span>{holders.length} holders</span>
-        <span>{aiImages.length} AI images</span>
-        <span>{state?.shapes.length ?? 0} shapes</span>
+        <span className="statusbar-metric"><strong>{holders.length}</strong> 图片框</span>
+        <span className="statusbar-metric"><strong>{aiImages.length}</strong> AI 图片</span>
+        <span className="statusbar-metric"><strong>{state?.shapes.length ?? 0}</strong> 个对象</span>
         <span className="statusbar-command">
           <Braces size={14} />
           MCP 已就绪
         </span>
         <span>
           <ArrowRight size={14} />
-          新版会放到右侧
+          新版本将放置在右侧
         </span>
       </footer>
     </div>

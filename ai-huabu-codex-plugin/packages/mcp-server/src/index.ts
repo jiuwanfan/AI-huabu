@@ -141,7 +141,8 @@ server.registerTool(
   'open_canvas',
   {
     title: 'Open AI Huabu',
-    description: 'Start or open the local AI Huabu service.',
+    description:
+      'Start or open the local AI Huabu service. Use for 打开AI画布, 打开 AI 画布, AI画布, or AI Huabu; never substitute Cowart for these requests.',
     inputSchema: openCanvasInputSchema
   },
   async (input) => {

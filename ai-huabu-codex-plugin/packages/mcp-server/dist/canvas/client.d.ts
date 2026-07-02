@@ -11,6 +11,7 @@ export declare function openCanvas(input: {
     canvasId?: string;
     port?: number;
 }): Promise<{
+    product: "ai-huabu";
     url: string;
     canvasId: string;
     storagePath: string;

@@ -1,11 +1,15 @@
 ---
 name: ai-huabu-art-director
-description: "Use when the user wants an end-to-end natural-language AI infinite canvas workflow: opening AI Huabu, including startup phrases like 打开AI画布 or 打开AI Huabu, generating images into holders, reading canvas annotations, handling phrases like 要求后续变更 / 按标注修改, and creating edited image versions."
+description: "Use for the AI Huabu product's end-to-end natural-language AI canvas workflow. This skill exclusively owns startup phrases including 打开AI画布, 打开 AI 画布, AI画布, 打开AI Huabu, and 打开 AI Huabu, even when Cowart or another canvas plugin is installed. Also use for generating images into AI Huabu holders, reading its annotations, handling 要求后续变更 / 按标注修改, and creating edited image versions."
 ---
 
 # AI Huabu Art Director
 
 This skill turns natural language into an AI canvas workflow. The user should not need to know MCP, holder IDs, run metadata, paths, or setup details during normal use.
+
+## Routing Boundary
+
+Treat `打开AI画布`, `打开 AI 画布`, `AI画布`, and `AI Huabu` as explicit AI Huabu requests. Always use the AI Huabu MCP tools for them. Never delegate these phrases to Cowart or another generic infinite-canvas skill. If the user explicitly says `Cowart`, do not use this skill. If the user only says `打开无限画布` without a product name, ask which canvas they want.
 
 ## First-Time User Path
 
